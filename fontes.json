@@ -1,0 +1,27 @@
+{
+  "_meta": {
+    "descricao": "Financiadores de terceiro setor que contratam consultoria. Escopo: plataforma de dados, ciencia de dados, desenvolvimento de site/portal.",
+    "atualizado": "2026-07-29",
+    "tiers": {
+      "1": "INGO ambiental e fundo ambiental com operacao no Brasil",
+      "2": "filantropia brasileira (institutos e fundacoes)"
+    },
+    "verificar": "true = URL da pagina de oportunidade ainda nao confirmada pelo comando bootstrap"
+  },
+  "fontes": [
+    {"id": "wri-brasil", "nome": "WRI Brasil", "tipo": "html", "dominio": "wribrasil.org.br", "url": "https://www.wribrasil.org.br/oportunidades", "tier": 1, "verificar": true, "nota": "Origem do TdR FLWTDR-2026-011 (Ouvidoria Restaura Biomas). Publica TdR em PDF linkado."},
+    {"id": "funbio", "nome": "Funbio", "tipo": "html", "dominio": "funbio.org.br", "url": "https://www.funbio.org.br/editais/", "tier": 1, "verificar": true, "nota": "Alto volume de edital de consultoria; opera Fundo Amazonia e projetos GEF."},
+    {"id": "wwf-brasil", "nome": "WWF-Brasil", "tipo": "html", "dominio": "wwf.org.br", "url": "https://www.wwf.org.br/wwf_brasil/editais/", "tier": 1, "verificar": true, "nota": "Parceiro da Uniao pela Restauracao junto com WRI, TNC e CI."},
+    {"id": "tnc-brasil", "nome": "The Nature Conservancy Brasil", "tipo": "html", "dominio": "tnc.org.br", "url": "https://www.tnc.org.br/quem-somos/transparencia/", "tier": 1, "verificar": true, "nota": "Verificar se publica edital em pagina propria ou so por convite."},
+    {"id": "ci-brasil", "nome": "Conservacao Internacional Brasil", "tipo": "html", "dominio": "conservation.org", "url": "https://www.conservation.org/brasil/oportunidades", "tier": 1, "verificar": true, "nota": "CI-GEF e o financiador do Restaura Biomas."},
+    {"id": "ipam", "nome": "IPAM", "tipo": "html", "dominio": "ipam.org.br", "url": "https://ipam.org.br/oportunidades/", "tier": 1, "verificar": true, "nota": "Pesquisa amazonica; contrata dados e geoespacial."},
+    {"id": "imazon", "nome": "Imazon", "tipo": "html", "dominio": "imazon.org.br", "url": "https://imazon.org.br/institucional/trabalhe-conosco/", "tier": 1, "verificar": true, "nota": "Forte em sensoriamento remoto; separar vaga de consultoria."},
+    {"id": "isa", "nome": "Instituto Socioambiental", "tipo": "html", "dominio": "socioambiental.org", "url": "https://www.socioambiental.org/pt-br/institucional/editais", "tier": 1, "verificar": true, "nota": "Publica edital e chamada de consultoria."},
+    {"id": "fas", "nome": "Fundacao Amazonia Sustentavel", "tipo": "html", "dominio": "fas-amazonia.org", "url": "https://fas-amazonia.org/editais/", "tier": 1, "verificar": true, "nota": "Volume alto de cotacao e TdR."},
+    {"id": "escolhas", "nome": "Instituto Escolhas", "tipo": "html", "dominio": "escolhas.org", "url": "https://escolhas.org/oportunidades/", "tier": 1, "verificar": true, "nota": "Estudo economico-ambiental; contrata analise de dados."},
+    {"id": "talanoa", "nome": "Instituto Talanoa", "tipo": "gnews", "dominio": "institutotalanoa.org", "query": "site:institutotalanoa.org edital OR consultoria OR \"termo de referencia\"", "tier": 1, "verificar": false, "nota": "Sem pagina de oportunidade conhecida; coberto por padrao textual."},
+    {"id": "sos-mata-atlantica", "nome": "SOS Mata Atlantica", "tipo": "html", "dominio": "sosma.org.br", "url": "https://www.sosma.org.br/transparencia/", "tier": 1, "verificar": true, "nota": "Verificar secao de contratacao."},
+    {"id": "observatorio-do-clima", "nome": "Observatorio do Clima", "tipo": "gnews", "dominio": "oc.eco.br", "query": "site:oc.eco.br edital OR consultoria OR vaga", "tier": 1, "verificar": false, "nota": "Rede; publica pouco edital proprio."},
+    {"id": "fundo-casa", "nome": "Fundo Casa Socioambiental", "tipo": "html", "dominio": "casa.org.br", "url": "https://casa.org.br/editais/", "tier": 1, "verificar": true, "nota": "Foco em apoio a projeto; veto suave tende a filtrar. Manter para pegar consultoria de plataforma."}
+  ]
+}

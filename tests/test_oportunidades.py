@@ -69,3 +69,26 @@ def test_mesma_oportunidade_em_duas_trilhas_gera_um_registro(tmp_path):
     oportunidades.salvar(con, FONTE, "catalogo", [op()])
     oportunidades.salvar(con, FONTE, "gnews", [op()])
     assert con.execute("SELECT count(*) FROM oportunidades").fetchone()[0] == 1
+
+
+def test_canonizar_url_lixo_vira_vazio():
+    assert canonizar("   ") == ""
+    assert canonizar("#") == ""
+    assert canonizar("?") == ""
+    assert canonizar("/") == ""
+
+
+def test_canonizar_preserva_caminho_relativo():
+    assert canonizar("/media/tdr.pdf") == "/media/tdr.pdf"
+
+
+def test_id_nao_colide_com_url_lixo(tmp_path):
+    a = id_oportunidade("wri-brasil", "   ", "Edital A")
+    b = id_oportunidade("wri-brasil", "\t", "Edital B")
+    assert a != b
+
+
+def test_id_tolera_titulo_none():
+    vazio = id_oportunidade("wri-brasil", "", None)
+    real = id_oportunidade("wri-brasil", "", "Edital A")
+    assert vazio and vazio != real

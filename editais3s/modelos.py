@@ -22,18 +22,21 @@ class Oportunidade:
 
 
 def canonizar(url: str) -> str:
+    url = (url or "").strip()
     if not url:
         return ""
-    partes = urlsplit(url.strip())
+    partes = urlsplit(url)
     query = urlencode(
         [(k, v) for k, v in parse_qsl(partes.query) if k.lower() not in PARAMS_LIXO]
     )
     caminho = partes.path.rstrip("/") or "/"
+    if not partes.netloc and not query and caminho in ("", "/"):
+        return ""
     return urlunsplit(
         (partes.scheme.lower(), partes.netloc.lower(), caminho, query, "")
     )
 
 
 def id_oportunidade(fonte_id: str, url: str, titulo: str) -> str:
-    chave = canonizar(url) or f"{fonte_id}|{titulo.strip().lower()}"
+    chave = canonizar(url) or f"{fonte_id}|{(titulo or '').strip().lower()}"
     return hashlib.sha1(chave.encode("utf-8")).hexdigest()

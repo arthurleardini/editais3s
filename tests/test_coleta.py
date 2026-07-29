@@ -109,3 +109,30 @@ def test_robots_liberado_quando_ausente():
 
     c = httpx.Client(transport=httpx.MockTransport(handler))
     assert coleta.robots_permite(FONTE, c) is True
+
+
+def test_retry_recupera_de_falha_transitoria(tmp_path):
+    con = db.conectar(tmp_path / "t.sqlite")
+    tentativas = {"n": 0}
+
+    def handler(request):
+        tentativas["n"] += 1
+        if tentativas["n"] == 1:
+            raise httpx.ConnectError("falha transitoria")
+        return httpx.Response(200, text=PAGINA_A)
+
+    c = httpx.Client(transport=httpx.MockTransport(handler))
+    r = coleta.coletar(FONTE, con, c)
+    assert r.ok is True
+    assert r.mudou is True
+    assert tentativas["n"] == 2
+
+
+def test_erros_seguidos_incrementa_em_falhas_consecutivas(tmp_path):
+    con = db.conectar(tmp_path / "t.sqlite")
+    for _ in range(3):
+        coleta.coletar(FONTE, con, cliente("erro", status=500))
+    linha = con.execute(
+        "SELECT erros_seguidos FROM snapshots WHERE fonte_id=?", (FONTE["id"],)
+    ).fetchone()
+    assert linha["erros_seguidos"] == 3

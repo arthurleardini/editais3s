@@ -59,3 +59,17 @@ def test_desenvolvimento_de_site_aprovado():
     )
     assert aprovado is True
     assert "desenvolvimento web" in temas
+
+
+def test_termo_nao_pontua_como_substring_de_palavra_maior():
+    score, temas = escopo.pontuar("atendimento muito rapido e eficiente")
+    assert score == 0
+    assert temas == []
+
+
+def test_score_igual_ao_minimo_e_aprovado():
+    aprovado, score, temas = escopo.avaliar(
+        "Desenvolvimento de dashboard gerencial para acompanhamento"
+    )
+    assert score == SCORE_KW_MINIMO
+    assert aprovado is True

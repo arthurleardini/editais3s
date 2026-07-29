@@ -77,3 +77,12 @@ def test_extrair_sem_api_key_cai_na_heuristica(monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     ops = extrai.extrair(TEXTO, FONTE)
     assert ops and all(o.modalidade == "indefinido" for o in ops)
+
+def test_extrair_chamar_lanca_excecao_cai_na_heuristica():
+    def boom(texto, fonte):
+        raise RuntimeError("falha de rede")
+
+    ops = extrai.extrair(TEXTO, FONTE, chamar=boom)
+    assert ops
+    assert all(o.modalidade == "indefinido" for o in ops)
+    assert any("FLWTDR" in o.titulo for o in ops)

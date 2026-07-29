@@ -69,12 +69,14 @@ git commit -m "chore: repo inicial com spec de design"
 
 - [ ] **Step 2: Escrever `requirements.txt`**
 
+Versoes conferidas no ambiente (`.venv` na raiz do repo, use `.venv/bin/python`):
+
 ```
 httpx==0.28.1
-selectolax==0.3.27
-pyahocorasick==2.1.0
-anthropic==0.69.0
-pytest==8.3.4
+selectolax==0.4.11
+pyahocorasick==2.3.1
+anthropic==0.120.2
+pytest==9.1.1
 ```
 
 - [ ] **Step 3: Escrever o teste do banco**

@@ -14,9 +14,8 @@ HTML = """
 </body></html>
 """
 
-HTML_MULTILINHA = """<body><ul><li><a href="/media/tdr.pdf">
-      TdR Ouvidoria Restaura Biomas
-    </a> Prazo: 13/07/2026</li></ul></body>"""
+HTML_MULTILINHA = """<body><ul><li><a href="/media/tdr.pdf">TdR Ouvidoria
+      Restaura Biomas</a> Prazo: 13/07/2026</li></ul></body>"""
 
 
 def test_limpar_remove_navegacao_e_script():

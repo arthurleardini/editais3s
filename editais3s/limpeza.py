@@ -16,13 +16,14 @@ RE_ANCORA = re.compile(
 )
 RE_TAG = re.compile(r"<[^>]+>")
 RE_ESPACO = re.compile(r"[ \t]+")
+RE_ESPACO_TUDO = re.compile(r"\s+")
 RE_LINHAS = re.compile(r"\n{3,}")
 
 
 def _inline_ancoras(html: str) -> str:
     def troca(m: re.Match) -> str:
         href = m.group(1).strip()
-        dentro = RE_ESPACO.sub(" ", RE_TAG.sub(" ", m.group(2))).strip()
+        dentro = RE_ESPACO_TUDO.sub(" ", RE_TAG.sub(" ", m.group(2))).strip()
         return f" [{dentro}]({href}) " if dentro else " "
 
     return RE_ANCORA.sub(troca, html)

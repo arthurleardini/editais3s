@@ -14,6 +14,10 @@ HTML = """
 </body></html>
 """
 
+HTML_MULTILINHA = """<body><ul><li><a href="/media/tdr.pdf">
+      TdR Ouvidoria Restaura Biomas
+    </a> Prazo: 13/07/2026</li></ul></body>"""
+
 
 def test_limpar_remove_navegacao_e_script():
     texto = limpeza.limpar(HTML)
@@ -42,3 +46,10 @@ def test_hash_estavel_e_sensivel():
     assert limpeza.hash_texto("a") == limpeza.hash_texto("a")
     assert limpeza.hash_texto("a") != limpeza.hash_texto("b")
     assert len(limpeza.hash_texto("a")) == 40
+
+
+def test_ancora_multilinha_fica_em_uma_linha():
+    texto = limpeza.limpar(HTML_MULTILINHA)
+    assert "[TdR Ouvidoria Restaura Biomas](/media/tdr.pdf)" in texto
+    linhas = [l for l in texto.splitlines() if "tdr.pdf" in l]
+    assert len(linhas) == 1

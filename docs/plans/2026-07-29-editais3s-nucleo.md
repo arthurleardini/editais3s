@@ -942,6 +942,28 @@ def test_mudanca_de_prazo_conta_como_atualizacao(tmp_path):
     assert linha["atualizado_em"]
 
 
+def test_canonizar_url_lixo_vira_vazio():
+    assert canonizar("   ") == ""
+    assert canonizar("#") == ""
+    assert canonizar("?") == ""
+    assert canonizar("/") == ""
+
+
+def test_canonizar_preserva_caminho_relativo():
+    assert canonizar("/media/tdr.pdf") == "/media/tdr.pdf"
+
+
+def test_id_nao_colide_com_url_lixo():
+    assert id_oportunidade("wri-brasil", "   ", "Edital A") != id_oportunidade(
+        "wri-brasil", "\t", "Edital B"
+    )
+
+
+def test_id_tolera_titulo_none():
+    vazio = id_oportunidade("wri-brasil", "", None)
+    assert vazio and vazio != id_oportunidade("wri-brasil", "", "Edital A")
+
+
 def test_mesma_oportunidade_em_duas_trilhas_gera_um_registro(tmp_path):
     con = db.conectar(tmp_path / "t.sqlite")
     oportunidades.salvar(con, FONTE, "catalogo", [op()])
@@ -981,20 +1003,27 @@ class Oportunidade:
 
 
 def canonizar(url: str) -> str:
+    url = (url or "").strip()
     if not url:
         return ""
-    partes = urlsplit(url.strip())
+    partes = urlsplit(url)
     query = urlencode(
         [(k, v) for k, v in parse_qsl(partes.query) if k.lower() not in PARAMS_LIXO]
     )
     caminho = partes.path.rstrip("/") or "/"
+    # URL lixo ("   ", "#", "?", "/") parseia para nada mas produziria "/", que e
+    # truthy — id_oportunidade nao cairia no fallback do titulo e duas oportunidades
+    # distintas da mesma fonte colidiriam no mesmo id. Caminho relativo real
+    # ("/media/tdr.pdf") tem que sobreviver.
+    if not partes.netloc and not query and caminho in ("", "/"):
+        return ""
     return urlunsplit(
         (partes.scheme.lower(), partes.netloc.lower(), caminho, query, "")
     )
 
 
 def id_oportunidade(fonte_id: str, url: str, titulo: str) -> str:
-    chave = canonizar(url) or f"{fonte_id}|{titulo.strip().lower()}"
+    chave = canonizar(url) or f"{fonte_id}|{(titulo or '').strip().lower()}"
     return hashlib.sha1(chave.encode("utf-8")).hexdigest()
 ```
 

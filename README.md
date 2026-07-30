@@ -28,6 +28,8 @@ python -m editais3s relatorio --data 2026-07-29
 `ANTHROPIC_API_KEY` no ambiente habilita extração e juiz por LLM. Sem a chave o
 job roda com extração heurística e sem score, e o relatório avisa.
 
+Como gravar a chave, verificar, e usar no cron: `docs/configurar-api-key.md`.
+
 ## Como funciona
 
 `fontes.json` é o catálogo curado. Para cada fonte HTML: baixa, limpa para texto,

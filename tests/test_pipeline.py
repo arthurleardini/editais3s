@@ -1,6 +1,7 @@
 import httpx
 
 from editais3s import db, pipeline
+from editais3s.config import INTERVALO_DOMINIO
 
 FONTE = {
     "id": "wri-brasil",
@@ -97,3 +98,87 @@ def test_varrer_registra_execucao(tmp_path, monkeypatch):
     con = db.conectar(tmp_path / "t.sqlite")
     pipeline.varrer(con, [FONTE], cliente_falso(), usar_llm=False, pausar=lambda _: None)
     assert con.execute("SELECT count(*) FROM execucoes").fetchone()[0] == 1
+
+
+def test_varrer_isola_falha_de_extracao(tmp_path, monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    con = db.conectar(tmp_path / "t.sqlite")
+    fonte_ruim = dict(FONTE, id="ruim", dominio="ruim.org", url="https://ruim.org/x")
+    fonte_boa = dict(FONTE, id="boa", dominio="boa.org", url="https://boa.org/x")
+    original = pipeline.extrai.extrair
+
+    def extrair_falha(texto, fonte, chamar=None):
+        if fonte["id"] == "ruim":
+            raise RuntimeError("html impossivel")
+        return original(texto, fonte, chamar)
+
+    monkeypatch.setattr(pipeline.extrai, "extrair", extrair_falha)
+    resumo = pipeline.varrer(
+        con, [fonte_ruim, fonte_boa], cliente_falso(),
+        usar_llm=False, pausar=lambda _: None,
+    )
+    assert resumo["fontes_erro"] >= 1
+    assert resumo["novas"] >= 1
+    titulos = [l["titulo"] for l in con.execute("SELECT titulo FROM oportunidades")]
+    assert any("TdR Ouvidoria" in t for t in titulos)
+    assert con.execute("SELECT count(*) FROM execucoes").fetchone()[0] == 1
+
+
+def test_varrer_nao_chama_juiz_quando_usar_llm_false(tmp_path, monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    con = db.conectar(tmp_path / "t.sqlite")
+    chamado = []
+    monkeypatch.setattr(
+        pipeline.juiz, "julgar", lambda itens: chamado.append(itens) or []
+    )
+    pipeline.varrer(
+        con, [FONTE], cliente_falso(), usar_llm=False, pausar=lambda _: None
+    )
+    assert chamado == []
+
+
+def test_varrer_pausa_entre_fontes_mas_nao_antes_da_primeira(tmp_path, monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    con = db.conectar(tmp_path / "t.sqlite")
+    chamadas = []
+    fonte2 = dict(
+        FONTE, id="wri-brasil-2", dominio="outro.org.br",
+        url="https://outro.org.br/oportunidades",
+    )
+    pipeline.varrer(
+        con, [FONTE, fonte2], cliente_falso(), usar_llm=False,
+        pausar=lambda segundos: chamadas.append(segundos),
+    )
+    assert chamadas == [INTERVALO_DOMINIO]
+
+
+def test_varrer_grava_contadores_reais_em_execucoes(tmp_path, monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    con = db.conectar(tmp_path / "t.sqlite")
+    resumo = pipeline.varrer(
+        con, [FONTE], cliente_falso(), usar_llm=False, pausar=lambda _: None
+    )
+    linha = con.execute(
+        "SELECT fontes_ok, fontes_erro, novas FROM execucoes"
+    ).fetchone()
+    assert (linha["fontes_ok"], linha["fontes_erro"], linha["novas"]) == (
+        resumo["fontes_ok"], resumo["fontes_erro"], resumo["novas"],
+    )
+    assert linha["novas"] >= 1
+
+
+def test_varrer_respeita_robots_txt_disallow(tmp_path):
+    con = db.conectar(tmp_path / "t.sqlite")
+
+    def handler(request):
+        if request.url.path == "/robots.txt":
+            return httpx.Response(200, text="User-agent: *\nDisallow: /\n")
+        return httpx.Response(200, text=PAGINA)
+
+    c = httpx.Client(transport=httpx.MockTransport(handler))
+    resumo = pipeline.varrer(
+        con, [FONTE], c, usar_llm=False, pausar=lambda _: None
+    )
+    assert resumo["ignoradas"] == 1
+    assert resumo["fontes_ok"] == 0
+    assert con.execute("SELECT count(*) FROM oportunidades").fetchone()[0] == 0

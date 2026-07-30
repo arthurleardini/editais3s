@@ -177,6 +177,15 @@ def test_saude_lista_fonte_silenciosa(tmp_path):
     assert "imazon" in bloco
 
 
+def test_aviso_quando_rodada_sem_llm(tmp_path):
+    con = db.conectar(tmp_path / "t.sqlite")
+    semear(con)
+    md = relatorio.gerar(con, HOJE, execucao={"fontes_ok": 1, "fontes_erro": 0, "sem_llm": True})
+    assert "sem juiz LLM" in md
+    limpo = relatorio.gerar(con, HOJE, execucao={"fontes_ok": 1, "fontes_erro": 0})
+    assert "sem juiz LLM" not in limpo
+
+
 def test_aderente_com_prazo_curto_aparece_nos_dois_blocos(tmp_path):
     con = db.conectar(tmp_path / "t.sqlite")
     semear(

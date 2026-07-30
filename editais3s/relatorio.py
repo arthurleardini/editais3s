@@ -112,6 +112,11 @@ def gerar(con: sqlite3.Connection, data: str, execucao: dict | None = None) -> s
                 custo=float(execucao.get("custo_usd") or 0.0),
             )
         )
+        if execucao.get("sem_llm"):
+            partes.append(
+                "> Aviso: rodada sem juiz LLM (--sem-llm ou ANTHROPIC_API_KEY "
+                "ausente). Itens sem score aparecem no bloco Nao julgadas.\n"
+            )
 
     apertadas = [o for o in itens if _prazo_apertado(o, data)]
     aderentes = [

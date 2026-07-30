@@ -32,7 +32,7 @@ def varrer(
     iniciado = _agora()
     resumo = {
         "fontes_ok": 0, "fontes_erro": 0, "novas": 0,
-        "atualizadas": 0, "ignoradas": 0,
+        "atualizadas": 0, "ignoradas": 0, "sem_llm": not usar_llm,
     }
     pendentes: list[dict] = []
 
@@ -56,8 +56,22 @@ def varrer(
             resumo["ignoradas"] += 1
             continue
 
-        ops = extrai.extrair(r.texto, fonte)
-        novas, atualizadas = oportunidades.salvar(con, fonte, TRILHA, ops)
+        try:
+            ops = extrai.extrair(r.texto, fonte)
+            novas, atualizadas = oportunidades.salvar(con, fonte, TRILHA, ops)
+        except Exception as exc:
+            # Uma fonte com HTML patologico ou conflito no banco nao pode derrubar a
+            # varredura das outras. Conta como erro e segue. Note que a fonte ja foi
+            # contada em fontes_ok pela coleta bem-sucedida, entao ela aparece nos dois
+            # contadores: coletou, mas nao rendeu item.
+            resumo["fontes_erro"] += 1
+            con.execute(
+                "UPDATE snapshots SET erro=?, erros_seguidos=erros_seguidos+1 "
+                "WHERE fonte_id=?",
+                (f"extracao/persistencia: {type(exc).__name__}: {exc}", fonte["id"]),
+            )
+            con.commit()
+            continue
         resumo["novas"] += len(novas)
         resumo["atualizadas"] += len(atualizadas)
 

@@ -1,6 +1,6 @@
 from datetime import date, timedelta
 from editais3s import db, relatorio
-from editais3s.config import PRAZO_APERTADO_DIAS
+from editais3s.config import DIAS_TOLERANCIA_VENCIDO, PRAZO_APERTADO_DIAS
 
 HOJE = "2026-07-29"
 
@@ -322,9 +322,35 @@ def _sem_bloco_prazo_apertado(md: str) -> str:
     return antes + depois
 
 
-def test_prazo_vencido_prazo_passado_e_vencido():
+def test_prazo_vencido_prazo_passado_alem_da_tolerancia_e_vencido():
+    # Correcao 2: janela de tolerancia de DIAS_TOLERANCIA_VENCIDO (7) dias —
+    # 1 dia de atraso NAO e' mais vencido (era, antes desta correcao; teste
+    # atualizado porque encodava a regra antiga de tolerancia zero). So'
+    # confirma vencido quem passou da janela de tolerancia.
     hoje = date.fromisoformat(HOJE)
-    passado = (hoje - timedelta(days=1)).isoformat()
+    passado = (hoje - timedelta(days=DIAS_TOLERANCIA_VENCIDO + 1)).isoformat()
+    assert relatorio.prazo_vencido(passado, hoje) is True
+
+
+def test_prazo_vencido_dentro_da_tolerancia_nao_e_vencido():
+    # 3 dias de atraso: dentro da janela de 7 dias de tolerancia — prazo
+    # divulgado costuma ser prorrogado, entao continua visivel no relatorio.
+    hoje = date.fromisoformat(HOJE)
+    passado = (hoje - timedelta(days=3)).isoformat()
+    assert relatorio.prazo_vencido(passado, hoje) is False
+
+
+def test_prazo_vencido_no_limite_da_tolerancia_nao_e_vencido():
+    # Boundary exato: atraso == DIAS_TOLERANCIA_VENCIDO (7) ainda NAO e'
+    # vencido — so' vence quando o atraso passa da tolerancia.
+    hoje = date.fromisoformat(HOJE)
+    passado = (hoje - timedelta(days=DIAS_TOLERANCIA_VENCIDO)).isoformat()
+    assert relatorio.prazo_vencido(passado, hoje) is False
+
+
+def test_prazo_vencido_oito_dias_de_atraso_e_vencido():
+    hoje = date.fromisoformat(HOJE)
+    passado = (hoje - timedelta(days=8)).isoformat()
     assert relatorio.prazo_vencido(passado, hoje) is True
 
 

@@ -7,7 +7,7 @@ from pathlib import Path
 import httpx
 
 from . import coleta, db, escopo, extrai, fontes as cat, juiz, oportunidades, relatorio
-from .config import INTERVALO_DOMINIO, TIMEOUT, UA, tem_api_key
+from .config import INTERVALO_DOMINIO, SCORE_LLM_OLHAR, TIMEOUT, UA, tem_api_key
 
 TRILHA = "catalogo"
 
@@ -212,7 +212,7 @@ def retriar(con: sqlite3.Connection, usar_llm: bool = True) -> int:
     hoje = datetime.now(timezone.utc).date()
 
     candidatas_prazo = con.execute(
-        "SELECT id, prazo, status FROM oportunidades WHERE prazo IS NOT NULL"
+        "SELECT id, prazo, status, score_llm FROM oportunidades WHERE prazo IS NOT NULL"
     ).fetchall()
     vencidas = [
         l["id"] for l in candidatas_prazo if relatorio.prazo_vencido(l["prazo"], hoje)
@@ -236,6 +236,26 @@ def retriar(con: sqlite3.Connection, usar_llm: bool = True) -> int:
         con.commit()
 
     vencidas_set = set(vencidas)
+
+    # DIAS_TOLERANCIA_VENCIDO pode ter mudado desde a ultima varredura/retriar:
+    # uma linha ja julgada (score_llm setado) que uma rodada anterior marcou
+    # 'vencida' sob uma janela menor (ou zero) pode nao ser mais vencida sob a
+    # janela atual. Essa linha nao passa pelo loop de 'linhas' abaixo (que so
+    # pega score_llm IS NULL), entao sem isto ficaria presa em 'vencida' para
+    # sempre. Reverte para o status que o score_llm ja julgado indica — mesmo
+    # corte que juiz.aplicar usa.
+    for l in candidatas_prazo:
+        if (
+            l["status"] == "vencida"
+            and l["id"] not in vencidas_set
+            and l["score_llm"] is not None
+        ):
+            novo_status = "reportada" if l["score_llm"] >= SCORE_LLM_OLHAR else "triagem"
+            con.execute(
+                "UPDATE oportunidades SET status=? WHERE id=?", (novo_status, l["id"])
+            )
+    con.commit()
+
     pendentes: list[dict] = []
 
     for linha in linhas:

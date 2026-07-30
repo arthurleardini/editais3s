@@ -47,6 +47,29 @@ def test_hash_estavel_e_sensivel():
     assert len(limpeza.hash_texto("a")) == 40
 
 
+def test_limpar_mascara_email_pessoal():
+    # Correcao 3: email pessoal de contato (ex: fernanda.moran@tnc.org) nao
+    # pode fluir para o banco/relatorio — LGPD + check_sensivel.py.
+    html = "<body><p>Contato: fernanda.moran@tnc.org para duvidas</p></body>"
+    texto = limpeza.limpar(html)
+    assert "fernanda.moran@tnc.org" not in texto
+    assert "⟨email⟩" in texto
+
+
+def test_limpar_sem_email_fica_intacto():
+    texto = limpeza.limpar(HTML)
+    assert "⟨email⟩" not in texto
+    assert "TdR FLWTDR-2026-011 Ouvidoria Restaura Biomas" in texto
+
+
+def test_hash_estavel_apos_mascarar_email_em_duas_limpezas():
+    html = "<body><p>Fale com fernanda.moran@tnc.org</p></body>"
+    t1 = limpeza.limpar(html)
+    t2 = limpeza.limpar(html)
+    assert t1 == t2
+    assert limpeza.hash_texto(t1) == limpeza.hash_texto(t2)
+
+
 def test_ancora_multilinha_fica_em_uma_linha():
     texto = limpeza.limpar(HTML_MULTILINHA)
     assert "[TdR Ouvidoria Restaura Biomas](/media/tdr.pdf)" in texto

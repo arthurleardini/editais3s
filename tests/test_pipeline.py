@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import httpx
 
@@ -543,6 +543,43 @@ def test_retriar_move_prazo_ja_vencido_para_vencida(tmp_path, monkeypatch):
     ).fetchone()
     assert linha["status"] == "vencida"
     assert mudou == 1
+
+
+def test_retriar_revive_vencida_dentro_da_nova_tolerancia(tmp_path, monkeypatch):
+    """Correcao 2: linha marcada 'vencida' numa rodada anterior (regra de
+    tolerancia zero, ou qualquer rodada anterior a uma mudanca de
+    DIAS_TOLERANCIA_VENCIDO) cujo atraso, sob a janela atual, ja nao
+    configura mais vencida — tem que sair de 'vencida' e voltar ao status
+    que o score_llm ja julgado indica, nao ficar presa para sempre (ela nao
+    passa pelo loop de reclassificacao normal, que so pega score_llm NULL)."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    con = db.conectar(tmp_path / "t.sqlite")
+    hoje = datetime.now(timezone.utc).date()
+    prazo_3_dias_atras = (hoje - timedelta(days=3)).isoformat()
+    novas, _ = pipeline.oportunidades.salvar(
+        con, {"id": "abong", "nome": "Abong"}, "catalogo",
+        [
+            Oportunidade(
+                titulo="Abong contrata consultoria em comunicacao para "
+                "criacao de campanha digital",
+                url="https://abong.org.br/oportunidades/campanha-2",
+                prazo=prazo_3_dias_atras,
+            )
+        ],
+    )
+    con.execute(
+        "UPDATE oportunidades SET score_llm=8, justificativa_llm='ok', "
+        "modelo_llm='m', status='vencida' WHERE id=?",
+        (novas[0],),
+    )
+    con.commit()
+
+    pipeline.retriar(con, usar_llm=False)
+
+    linha = con.execute(
+        "SELECT status FROM oportunidades WHERE id=?", (novas[0],)
+    ).fetchone()
+    assert linha["status"] == "reportada"
 
 
 def test_retriar_move_descartada_kw_nao_vetada_para_nova(tmp_path, monkeypatch):

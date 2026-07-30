@@ -18,6 +18,7 @@ RE_TAG = re.compile(r"<[^>]+>")
 RE_ESPACO = re.compile(r"[ \t]+")
 RE_ESPACO_TUDO = re.compile(r"\s+")
 RE_LINHAS = re.compile(r"\n{3,}")
+RE_EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 
 
 def _inline_ancoras(html: str) -> str:
@@ -39,6 +40,7 @@ def limpar(html: str, max_chars: int | None = None) -> str:
     bruto = raiz.text(separator="\n") if raiz else ""
     linhas = [RE_ESPACO.sub(" ", l).strip() for l in bruto.splitlines()]
     texto = "\n".join(l for l in linhas if l)
+    texto = RE_EMAIL.sub("⟨email⟩", texto)
     return RE_LINHAS.sub("\n\n", texto)[:limite]
 
 

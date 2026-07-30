@@ -5,6 +5,7 @@ from pathlib import Path
 
 from .config import (
     DIAS_SEM_ITEM_ALERTA,
+    DIAS_TOLERANCIA_VENCIDO,
     DIR_DADOS,
     PRAZO_APERTADO_DIAS,
     SCORE_KW_MINIMO,
@@ -94,15 +95,18 @@ def _prazo_apertado(o: sqlite3.Row, data: str) -> bool:
 
 
 def prazo_vencido(prazo, hoje: date) -> bool:
-    """True somente quando 'prazo' e' uma data ISO valida e estritamente
-    anterior a 'hoje'. NULL ou string malformada ('a definir') NAO e'
-    vencido — prazo desconhecido continua fluindo para o juiz e o
-    relatorio (o unico jeito de saber que uma oportunidade sem data
-    publicada, tipo a maioria dos itens do WRI, nao morreu)."""
+    """True somente quando 'prazo' e' uma data ISO valida e cujo atraso
+    passa de DIAS_TOLERANCIA_VENCIDO dias. NULL ou string malformada ('a
+    definir') NAO e' vencido — prazo desconhecido continua fluindo para o
+    juiz e o relatorio (o unico jeito de saber que uma oportunidade sem data
+    publicada, tipo a maioria dos itens do WRI, nao morreu). A janela de
+    tolerancia existe porque prazo divulgado e' frequentemente prorrogado —
+    um edital fechado ha poucos dias ainda e' inteligencia util, entao so
+    sai do relatorio quando o atraso confirma que nao voltou."""
     data_prazo = _parsear_prazo(prazo)
     if data_prazo is None:
         return False
-    return data_prazo < hoje
+    return (hoje - data_prazo).days > DIAS_TOLERANCIA_VENCIDO
 
 
 def _apertadas(con: sqlite3.Connection, data: str) -> list[sqlite3.Row]:

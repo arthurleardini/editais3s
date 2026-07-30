@@ -3,12 +3,26 @@
 Caminho principal: Haiku com structured output. Caminho de degradação: regex
 sobre as âncoras já inlinadas por limpeza.limpar, quando não há
 ANTHROPIC_API_KEY ou o SDK falha.
+
+Páginas grandes (catálogo com dezenas de itens: título longo, prazo,
+contato, url) estouram o orçamento de tokens de saída numa chamada só — o
+modelo, sem conseguir terminar o JSON, devolve lista vazia em vez de erro.
+Por isso o texto é dividido em pedaços sobrepostos antes de chamar o
+modelo, e os resultados são mesclados com dedup — ver `_dividir_em_chunks`
+e `extrair`.
 """
 import re
 from urllib.parse import urljoin
 
-from .config import MODELO_EXTRACAO, tem_api_key
+from .config import MAX_TOKENS_EXTRACAO, MODELO_EXTRACAO, tem_api_key
 from .modelos import Oportunidade
+
+# ~8.000 caracteres por chamada com ~500 de sobreposição: grande o bastante
+# pra manter contexto por chamada, pequeno o bastante pra sobrar orçamento de
+# saída para dezenas de itens com título+prazo+contato+url. A sobreposição
+# evita perder um item cujo bloco de texto cai bem na borda de um pedaço.
+TAMANHO_CHUNK = 8_000
+SOBREPOSICAO_CHUNK = 500
 
 SCHEMA = {
     "type": "object",
@@ -62,7 +76,7 @@ def chamar_llm(texto: str, fonte: dict) -> dict:
     cliente = anthropic.Anthropic()
     resposta = cliente.messages.create(
         model=MODELO_EXTRACAO,
-        max_tokens=4096,
+        max_tokens=MAX_TOKENS_EXTRACAO,
         system=INSTRUCAO,
         tools=[
             {
@@ -116,17 +130,63 @@ def heuristica(texto: str, fonte: dict) -> list[Oportunidade]:
     return [o for o in achados if o]
 
 
+def _dividir_em_chunks(
+    texto: str, tamanho: int = TAMANHO_CHUNK, sobreposicao: int = SOBREPOSICAO_CHUNK
+) -> list[str]:
+    """Pedaços sobrepostos de `texto`. Texto que já cabe no tamanho vira um
+    único pedaço (caso comum: a maioria das fontes é pequena e isto vira uma
+    chamada só, igual ao comportamento anterior à divisão)."""
+    n = len(texto)
+    if n <= tamanho:
+        return [texto]
+    passo = tamanho - sobreposicao
+    pedacos = []
+    inicio = 0
+    while inicio < n:
+        fim = min(inicio + tamanho, n)
+        pedacos.append(texto[inicio:fim])
+        if fim >= n:
+            break
+        inicio += passo
+    return pedacos
+
+
+def _itens_do_payload(payload) -> list[dict]:
+    """Extrai a lista de itens brutos de um payload de um pedaço. Payload
+    malformado (sem 'oportunidades' ou nao-lista) contribui nada, sem
+    levantar — cada pedaco e' isolado dos outros."""
+    if not isinstance(payload, dict):
+        return []
+    itens = payload.get("oportunidades")
+    if not isinstance(itens, list):
+        return []
+    return [i for i in itens if isinstance(i, dict)]
+
+
 def extrair(texto: str, fonte: dict, chamar=None) -> list[Oportunidade]:
     if chamar is None:
         if not tem_api_key():
             return heuristica(texto, fonte)
         chamar = chamar_llm
+
     try:
-        payload = chamar(texto, fonte)
+        brutos: list[dict] = []
+        for pedaco in _dividir_em_chunks(texto):
+            payload = chamar(pedaco, fonte)
+            brutos.extend(_itens_do_payload(payload))
     except Exception:
+        # Qualquer pedaço que falhe (rede, SDK, o que for) descarta a
+        # extração inteira desta página para a heurística — nao mistura
+        # itens de LLM parciais com itens de regex.
         return heuristica(texto, fonte)
-    itens = payload.get("oportunidades") if isinstance(payload, dict) else None
-    if not isinstance(itens, list):
-        return []
-    montadas = [_monta(i, fonte) for i in itens if isinstance(i, dict)]
-    return [o for o in montadas if o]
+
+    montadas = [o for o in (_monta(i, fonte) for i in brutos) if o]
+    vistos: set[tuple[str, str]] = set()
+    mescladas: list[Oportunidade] = []
+    for o in montadas:
+        chave = (o.titulo, o.url)
+        if chave in vistos:
+            continue
+        vistos.add(chave)
+        mescladas.append(o)
+    return mescladas

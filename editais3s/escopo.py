@@ -12,13 +12,16 @@ from .config import SCORE_KW_MINIMO
 TEMAS: dict[str, int] = {
     # peso 5 — núcleo do portfólio
     "plataforma de dados": 5,
+    "plataformas de dados": 5,
     "ciencia de dados": 5,
     "engenharia de dados": 5,
     "arquitetura de dados": 5,
     "desenvolvimento web": 5,
     "visualizacao de dados": 5,
     "desenvolvimento de site": 5,
+    "desenvolvimento do site": 5,
     "criacao de site": 5,
+    "criacao do site": 5,
     # peso 4
     "dashboard": 4,
     "painel de dados": 4,
@@ -33,12 +36,14 @@ TEMAS: dict[str, int] = {
     "monitoramento e avaliacao": 4,
     "ouvidoria": 4,
     "canal de denuncia": 4,
+    "canais de denuncia": 4,
     "aprendizado de maquina": 4,
     "inteligencia artificial": 4,
     "portal web": 4,
     "aplicacao web": 4,
     "site institucional": 4,
     "reformulacao de site": 4,
+    "reformulacao do site": 4,
     "website": 4,
     "portal institucional": 4,
     "painel de monitoramento": 4,
@@ -58,6 +63,7 @@ TEMAS: dict[str, int] = {
     "transparencia ativa": 3,
     "portal": 3,
     "painel": 3,
+    "paineis": 3,
 }
 
 VETOS: tuple[str, ...] = (

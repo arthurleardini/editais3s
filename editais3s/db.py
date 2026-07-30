@@ -64,6 +64,25 @@ CREATE TABLE IF NOT EXISTS execucoes (
 """
 
 
+def _migrar_colunas_novas(con: sqlite3.Connection) -> None:
+    """CREATE TABLE IF NOT EXISTS nao adiciona coluna nova a uma tabela que
+    ja existe: um banco criado por uma versao anterior do schema nunca
+    ganha as colunas que entraram depois. Guarda idempotente e generica —
+    cada entrada e (tabela, coluna, definicao DDL da coluna); roda a cada
+    conectar() e so faz ALTER TABLE quando a coluna realmente falta.
+    """
+    colunas_novas = [
+        ("oportunidades", "fonte_verificar", "INTEGER DEFAULT 0"),
+    ]
+    for tabela, coluna, definicao in colunas_novas:
+        existentes = {
+            linha[1] for linha in con.execute(f"PRAGMA table_info({tabela})")
+        }
+        if coluna not in existentes:
+            con.execute(f"ALTER TABLE {tabela} ADD COLUMN {coluna} {definicao}")
+    con.commit()
+
+
 def conectar(caminho: Path | None = None) -> sqlite3.Connection:
     caminho = Path(caminho) if caminho else BANCO
     caminho.parent.mkdir(parents=True, exist_ok=True)
@@ -71,4 +90,5 @@ def conectar(caminho: Path | None = None) -> sqlite3.Connection:
     con.row_factory = sqlite3.Row
     con.executescript(ESQUEMA)
     con.commit()
+    _migrar_colunas_novas(con)
     return con

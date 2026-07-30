@@ -77,15 +77,19 @@ def test_score_igual_ao_minimo_e_aprovado():
 
 def test_titulos_reais_do_flagship_agora_pontuam():
     """Achado 4: titulos reais que hoje sao invisiveis por falta de termo ou
-    por exigirem forma exata singular. Cobre 4 dos 5 titulos medidos no
-    achado — o quinto ("desenvolvimento DO site", com contracao "do" em vez
-    de "de") nao e coberto pelo termo "desenvolvimento de site" tal como
-    especificado; ver nota no relatorio final."""
+    por exigirem forma exata singular. O residual (titulo com contracao "do
+    site" em vez de "de site", e plural na PRIMEIRA palavra do termo
+    composto) foi fechado com variantes explicitas no dicionario em vez de
+    regex mais esperto — Aho-Corasick e O(n) no texto independente de
+    quantos termos o automato carrega, entao entradas extras sao de graca."""
     casos = [
         "Selecao de consultoria para construcao de website bilingue",
         "Cotacao para reformulacao do portal institucional",
         "TdR: painel de monitoramento de indicadores socioambientais",
         "Termo de referencia - implantacao de canal de denuncias",
+        "Termo de referencia para desenvolvimento do site do projeto",
+        "Implantacao de canais de denuncia",
+        "Consultoria para plataformas de dados abertos",
     ]
     for texto in casos:
         score, temas = escopo.pontuar(texto)

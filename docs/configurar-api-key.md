@@ -6,32 +6,29 @@ Sem chave: extração cai na heurística, juiz desliga, relatório sai sem score
 
 Chave em console.anthropic.com → API keys.
 
-**Nunca ponha a chave numa linha de comando.** Ela fica no histórico do shell, e num comando de
-agente fica no transcript. Crie o arquivo vazio e cole a chave dentro de um editor:
+**Este passo tem que ser feito num terminal de verdade, fora de sessão de agente.** Comando
+disparado por agente não tem TTY: editor interativo e `read` falham com
+`Standard input is not a terminal`. E chave digitada em chat fica no transcript.
+
+**Nunca ponha a chave numa linha de comando** — fica no histórico do shell.
+
+Cria o arquivo vazio, com permissão restrita:
 
 ```bash
 umask 077
 mkdir -p ~/.config
 printf 'ANTHROPIC_API_KEY=\n' > ~/.config/editais3s.env
 chmod 600 ~/.config/editais3s.env
+```
+
+Preenche o valor no editor:
+
+```bash
 nano ~/.config/editais3s.env
 ```
 
-No editor, cole a chave imediatamente depois do `=`, sem espaço e sem aspas. Salvar: `Ctrl+O`,
-`Enter`, `Ctrl+X`.
-
-Se preferir digitar num terminal de verdade, `read` também serve — mas só em terminal
-interativo, porque num comando disparado por agente não há TTY e o `read` recebe EOF na hora:
-
-```bash
-umask 077; mkdir -p ~/.config
-printf 'cole a key e aperte Enter: '; read -rs K
-printf 'ANTHROPIC_API_KEY=%s\n' "$K" > ~/.config/editais3s.env
-unset K; chmod 600 ~/.config/editais3s.env
-```
-
-O prompt vai num `printf` separado justamente para não parecer campo de preenchimento na mesma
-linha do comando.
+Cola a chave imediatamente depois do `=`, sem espaço e sem aspas. Salvar: `Ctrl+O`, `Enter`,
+`Ctrl+X`.
 
 ## Usar
 

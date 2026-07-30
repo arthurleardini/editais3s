@@ -87,3 +87,39 @@ def test_aplicar_marca_descarte_abaixo_da_faixa(tmp_path):
     )
     linha = con.execute("SELECT status FROM oportunidades WHERE id=?", (novas[0],)).fetchone()
     assert linha["status"] == "descartada_llm"
+
+
+def test_score_negativo_e_normalizado_para_zero():
+    itens = [{"id": "a1", "titulo": "T", "objeto": "", "fonte_nome": "X"}]
+    payload = {"avaliacoes": [{"id": "a1", "score": -5, "justificativa": "x"}]}
+    assert juiz.julgar(itens, chamar=lambda itens_: payload)[0]["score_llm"] == 0
+
+
+def test_aplicar_preserva_prazo_existente_quando_llm_nao_extrai(tmp_path):
+    con = db.conectar(tmp_path / "t.sqlite")
+    novas, _ = oportunidades.salvar(
+        con, FONTE, "catalogo", [Oportunidade(titulo="T", url="https://a.org/z")]
+    )
+    con.execute(
+        "UPDATE oportunidades SET prazo=?, modalidade=? WHERE id=?",
+        ("2026-08-01", "chamada", novas[0]),
+    )
+    con.commit()
+    juiz.aplicar(
+        con,
+        [
+            {
+                "id": novas[0],
+                "score_llm": 8,
+                "justificativa_llm": "ok",
+                "modelo_llm": "m",
+                "prazo": None,
+                "modalidade": None,
+            }
+        ],
+    )
+    linha = con.execute(
+        "SELECT prazo, modalidade FROM oportunidades WHERE id=?", (novas[0],)
+    ).fetchone()
+    assert linha["prazo"] == "2026-08-01"
+    assert linha["modalidade"] == "chamada"

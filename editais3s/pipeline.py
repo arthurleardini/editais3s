@@ -30,6 +30,10 @@ def varrer(
 ) -> dict:
     pausar = time.sleep if pausar is None else pausar
     iniciado = _agora()
+    # base UTC — mesma usada em oportunidades._agora/diario, nao date.today()
+    # local (rodada noturna em America/Sao_Paulo julgaria "vencido" um prazo
+    # de amanha).
+    hoje = datetime.now(timezone.utc).date()
     resumo = {
         "fontes_ok": 0, "fontes_erro": 0, "novas": 0,
         "atualizadas": 0,
@@ -85,10 +89,19 @@ def varrer(
 
         for oid in novas + atualizadas:
             linha = con.execute(
-                "SELECT id, titulo, objeto, fonte_nome, score_llm FROM oportunidades "
-                "WHERE id=?",
+                "SELECT id, titulo, objeto, fonte_nome, score_llm, prazo "
+                "FROM oportunidades WHERE id=?",
                 (oid,),
             ).fetchone()
+            if relatorio.prazo_vencido(linha["prazo"], hoje):
+                # prazo confirmado no passado: nao julga (economiza a
+                # chamada de LLM, que e o ponto) nem entra em pendentes.
+                # prazo NULL/malformado nao cai aqui — prazo_vencido so'
+                # confirma data ISO estritamente anterior a hoje.
+                con.execute(
+                    "UPDATE oportunidades SET status='vencida' WHERE id=?", (oid,)
+                )
+                continue
             classe, score_kw, temas = escopo.triar(
                 f"{linha['titulo']} {linha['objeto'] or ''}"
             )
@@ -190,16 +203,45 @@ def retriar(con: sqlite3.Connection, usar_llm: bool = True) -> int:
     """Reclassifica pelo funil atual toda linha que o juiz nunca viu
     (score_llm IS NULL). Migra linhas presas em status antigo (ex:
     descartada_kw de uma classificacao de veto que a regra atual nao
-    reproduz mais) e manda as nao vetadas para o juiz. Devolve quantas
-    linhas mudaram de status, do inicio ao fim (inclui o efeito do juiz)."""
+    reproduz mais) e manda as nao vetadas para o juiz. Tambem migra para
+    'vencida' toda linha (julgada ou nao, de qualquer rodada anterior) cujo
+    prazo confirmado ja passou — e' o que move os itens historicos com
+    prazo 2019/2021/2023 (ja julgados e rankeados numa rodada antiga) para
+    fora do relatorio. Devolve quantas linhas mudaram de status, do inicio
+    ao fim (inclui o efeito do juiz)."""
+    hoje = datetime.now(timezone.utc).date()
+
+    candidatas_prazo = con.execute(
+        "SELECT id, prazo, status FROM oportunidades WHERE prazo IS NOT NULL"
+    ).fetchall()
+    vencidas = [
+        l["id"] for l in candidatas_prazo if relatorio.prazo_vencido(l["prazo"], hoje)
+    ]
+
     linhas = con.execute(
         "SELECT id, titulo, objeto, fonte_nome, status FROM oportunidades "
         "WHERE score_llm IS NULL"
     ).fetchall()
+
     original = {l["id"]: l["status"] for l in linhas}
+    for l in candidatas_prazo:
+        original.setdefault(l["id"], l["status"])
+
+    if vencidas:
+        marcador = ",".join("?" * len(vencidas))
+        con.execute(
+            f"UPDATE oportunidades SET status='vencida' WHERE id IN ({marcador})",
+            tuple(vencidas),
+        )
+        con.commit()
+
+    vencidas_set = set(vencidas)
     pendentes: list[dict] = []
 
     for linha in linhas:
+        if linha["id"] in vencidas_set:
+            # ja marcada vencida acima: nao gasta juiz num item expirado.
+            continue
         classe, score_kw, temas = escopo.triar(
             f"{linha['titulo']} {linha['objeto'] or ''}"
         )

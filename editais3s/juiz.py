@@ -34,12 +34,17 @@ PORTFOLIO = (
     "dados ponta a ponta (pipeline, modelagem, painel), ciência de dados "
     "aplicada a política pública e socioambiental, site e portal institucional "
     "com arquitetura da informação e painel administrador próprio, análise "
-    "geoespacial, e desenho de processo com normatização interna. Caso de "
+    "geoespacial, monitoramento e avaliação, desenho de canal de ouvidoria e "
+    "recebimento de denúncias, automação e integração de sistemas. Caso de "
     "referência: para o WRI Brasil entregou o site bilíngue do projeto Restaura "
     "Biomas (arquitetura da informação, acervo de relatórios, radar de notícias, "
     "painel administrador autônomo) e depois concorreu ao TdR de Ouvidoria "
     "Institucional do mesmo projeto. Não faz obra, não faz fornecimento de "
-    "material, não coloca mão de obra terceirizada em posto de trabalho."
+    "material, não coloca mão de obra terceirizada em posto de trabalho. NÃO "
+    "vende — mercado adjacente do qual se afasta de propósito —: relações com "
+    "a imprensa, assessoria de imprensa, campanha publicitária ou de "
+    "comunicação, produção de conteúdo, comunicação institucional avulsa, "
+    "design gráfico avulso."
 )
 
 INSTRUCAO = (
@@ -48,8 +53,21 @@ INSTRUCAO = (
     "perfil abaixo e uma justificativa de UMA frase, factual, sem elogio. "
     "10 = objeto é exatamente o que a consultoria entrega. 0 = objeto sem "
     "nenhuma relação. Se o item for vaga de emprego, bolsa, prêmio ou apoio a "
-    "projeto de terceiro, dê 0. Extraia também o prazo em AAAA-MM-DD e a "
-    "modalidade, quando o texto permitir.\n\nPerfil:\n" + PORTFOLIO
+    "projeto de terceiro, dê 0.\n\n"
+    "Comunicação pura está fora de escopo, mesmo quando o vocabulário do "
+    "título pontua alto. O discriminador é o ENTREGÁVEL final, não o "
+    "vocabulário: se o produto final é uma plataforma, site, dashboard, "
+    "banco de dados ou sistema de ouvidoria, está dentro do escopo; se o "
+    "produto final é uma peça de comunicação — campanha, conteúdo, "
+    "assessoria de imprensa, comunicação institucional, design gráfico "
+    "avulso —, está fora, score 0 a 2, mesmo que o título mencione "
+    "'plataforma' como contexto do projeto. Armadilha conhecida: um TdR de "
+    "\"Consultoria em Comunicação para Plataforma de Restauração\" é "
+    "comunicação PARA uma plataforma, não a construção da plataforma — não "
+    "é o mesmo que o caso de referência do WRI (site/arquitetura da "
+    "informação/ouvidoria) e deve pontuar 0 a 2, não 8.\n\n"
+    "Extraia também o prazo em AAAA-MM-DD e a modalidade, quando o texto "
+    "permitir.\n\nPerfil:\n" + PORTFOLIO
 )
 
 

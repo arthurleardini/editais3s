@@ -58,39 +58,62 @@ def _tabela(titulo: str, linhas: list[sqlite3.Row]) -> str:
 
 
 def _do_dia(con: sqlite3.Connection, data: str) -> list[sqlite3.Row]:
-    # so 'descartada_kw' (veto — provadamente fora de escopo) fica de fora.
-    # 'triagem' (score de juiz abaixo do corte) tem que aparecer: o funil
-    # ranqueia, nao esconde.
+    # so 'descartada_kw' (veto — provadamente fora de escopo) e 'vencida'
+    # (prazo confirmado no passado) ficam de fora. 'triagem' (score de juiz
+    # abaixo do corte) tem que aparecer: o funil ranqueia, nao esconde.
     return con.execute(
         """
         SELECT * FROM oportunidades
          WHERE (visto_em LIKE ? OR atualizado_em LIKE ?)
-           AND status != 'descartada_kw'
+           AND status NOT IN ('descartada_kw', 'vencida')
          ORDER BY COALESCE(score_llm, -1) DESC, prazo IS NULL, prazo
         """,
         (f"{data}%", f"{data}%"),
     ).fetchall()
 
 
-def _prazo_apertado(o: sqlite3.Row, data: str) -> bool:
-    if not o["prazo"]:
-        return False
+def _parsear_prazo(prazo) -> date | None:
+    """Parser defensivo unico para 'prazo': None ou string que nao bate o
+    formato AAAA-MM-DD (ex: 'a definir') vira None, nunca levanta. Usado por
+    _prazo_apertado e por prazo_vencido para nao ter dois parsers com bordas
+    diferentes."""
+    if not prazo:
+        return None
     try:
-        prazo = datetime.strptime(o["prazo"], "%Y-%m-%d").date()
-    except ValueError:
+        return datetime.strptime(prazo, "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        return None
+
+
+def _prazo_apertado(o: sqlite3.Row, data: str) -> bool:
+    prazo = _parsear_prazo(o["prazo"])
+    if prazo is None:
         return False
     hoje = date.fromisoformat(data)
     return hoje <= prazo <= hoje + timedelta(days=PRAZO_APERTADO_DIAS)
+
+
+def prazo_vencido(prazo, hoje: date) -> bool:
+    """True somente quando 'prazo' e' uma data ISO valida e estritamente
+    anterior a 'hoje'. NULL ou string malformada ('a definir') NAO e'
+    vencido — prazo desconhecido continua fluindo para o juiz e o
+    relatorio (o unico jeito de saber que uma oportunidade sem data
+    publicada, tipo a maioria dos itens do WRI, nao morreu)."""
+    data_prazo = _parsear_prazo(prazo)
+    if data_prazo is None:
+        return False
+    return data_prazo < hoje
 
 
 def _apertadas(con: sqlite3.Connection, data: str) -> list[sqlite3.Row]:
     """Prazo apertado independe de quando o item foi visto: um item captado
     ha semanas com prazo se aproximando tem que continuar aparecendo aqui
     todo dia ate o prazo passar. So exclui descartada_kw (veto de keyword —
-    genuinamente fora do escopo); nova/reportada/triagem continuam,
-    porque este bloco ignora score de proposito."""
+    genuinamente fora do escopo) e vencida (prazo confirmado no passado);
+    nova/reportada/triagem continuam, porque este bloco ignora score de
+    proposito."""
     linhas = con.execute(
-        "SELECT * FROM oportunidades WHERE status != 'descartada_kw' "
+        "SELECT * FROM oportunidades WHERE status NOT IN ('descartada_kw', 'vencida') "
         "AND prazo IS NOT NULL"
     ).fetchall()
     return [o for o in linhas if _prazo_apertado(o, data)]

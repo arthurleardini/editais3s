@@ -322,6 +322,41 @@ def _sem_bloco_prazo_apertado(md: str) -> str:
     return antes + depois
 
 
+def test_prazo_vencido_prazo_passado_e_vencido():
+    hoje = date.fromisoformat(HOJE)
+    passado = (hoje - timedelta(days=1)).isoformat()
+    assert relatorio.prazo_vencido(passado, hoje) is True
+
+
+def test_prazo_vencido_none_nao_e_vencido():
+    # Critico: prazo NULL nao pode ser tratado como vencido — muitos
+    # financiadores (ex: WRI) nunca publicam data, e o item tem que
+    # continuar fluindo para o juiz e o relatorio.
+    hoje = date.fromisoformat(HOJE)
+    assert relatorio.prazo_vencido(None, hoje) is False
+
+
+def test_prazo_vencido_malformado_nao_levanta_e_nao_e_vencido():
+    hoje = date.fromisoformat(HOJE)
+    assert relatorio.prazo_vencido("a definir", hoje) is False
+
+
+def test_prazo_vencido_hoje_nao_e_vencido():
+    # Boundary: prazo == hoje ainda nao venceu (venceu e' estritamente antes).
+    hoje = date.fromisoformat(HOJE)
+    assert relatorio.prazo_vencido(hoje.isoformat(), hoje) is False
+
+
+def test_vencida_nao_aparece_em_nenhum_bloco(tmp_path):
+    con = db.conectar(tmp_path / "t.sqlite")
+    semear(
+        con, id="i19", titulo="Edital ja vencido em 2019", status="vencida",
+        prazo="2019-09-02", score_llm=8, justificativa_llm="aderente",
+    )
+    md = relatorio.gerar(con, HOJE)
+    assert "Edital ja vencido em 2019" not in md
+
+
 def test_blocos_de_classificacao_sao_mutuamente_exclusivos(tmp_path):
     """Achado do coordenador: com Nao julgadas (populacao 'novas') e Triagem
     (populacao 'itens', que inclui 'novas') usando bases diferentes, um item

@@ -412,6 +412,139 @@ def test_varrer_vetado_sem_tema_forte_fica_descartada_kw_e_fora_do_relatorio(
     assert "Vaga de emprego" not in md
 
 
+def test_varrer_marca_vencida_item_com_prazo_passado_e_nao_gasta_juiz(
+    tmp_path, monkeypatch
+):
+    """Correcao 1: um item cujo prazo e' uma data ISO confirmada no passado
+    (2019-09-02, do incidente real) tem que virar 'vencida', nao entrar em
+    pendentes (economiza a chamada de LLM) e nao aparecer no relatorio."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    con = db.conectar(tmp_path / "t.sqlite")
+
+    def extrair_falso(texto, fonte, chamar=None):
+        return [
+            Oportunidade(
+                titulo="Consultoria em Comunicacao para Plataforma de Restauracao",
+                objeto="comunicacao institucional",
+                url="https://www.wribrasil.org.br/media/comunicacao.pdf",
+                prazo="2019-09-02",
+            )
+        ]
+
+    monkeypatch.setattr(pipeline.extrai, "extrair", extrair_falso)
+
+    chamado = []
+    monkeypatch.setattr(
+        pipeline.juiz, "julgar", lambda itens: chamado.append(itens) or []
+    )
+
+    pipeline.varrer(con, [FONTE], cliente_falso(), usar_llm=True, pausar=lambda _: None)
+
+    linha = con.execute("SELECT status FROM oportunidades").fetchone()
+    assert linha["status"] == "vencida"
+    assert chamado == [], "juiz foi chamado para um item com prazo ja vencido"
+
+    hoje = datetime.now(timezone.utc).date().isoformat()
+    md = relatorio.gerar(con, hoje)
+    assert "Consultoria em Comunicacao" not in md
+
+
+def test_varrer_prazo_none_nao_e_vencida_e_continua_ate_o_juiz(tmp_path, monkeypatch):
+    """Critico: prazo=None (o caso real do melhor match do WRI) NAO pode ser
+    tratado como vencido — tem que continuar ate o juiz e aparecer no
+    relatorio."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    con = db.conectar(tmp_path / "t.sqlite")
+
+    def extrair_falso(texto, fonte, chamar=None):
+        return [
+            Oportunidade(
+                titulo="Consultoria em plataforma de dados sem prazo publicado",
+                objeto="plataforma de dados e painel de indicadores",
+                url="https://www.wribrasil.org.br/media/sem-prazo.pdf",
+                prazo=None,
+            )
+        ]
+
+    monkeypatch.setattr(pipeline.extrai, "extrair", extrair_falso)
+
+    def julgar_alto(itens):
+        return [
+            {
+                "id": i["id"], "score_llm": 9, "justificativa_llm": "aderente",
+                "prazo": None, "modalidade": None, "modelo_llm": "m",
+            }
+            for i in itens
+        ]
+
+    monkeypatch.setattr(pipeline.juiz, "julgar", julgar_alto)
+
+    pipeline.varrer(con, [FONTE], cliente_falso(), usar_llm=True, pausar=lambda _: None)
+
+    linha = con.execute("SELECT status, score_llm FROM oportunidades").fetchone()
+    assert linha["status"] != "vencida"
+    assert linha["score_llm"] == 9
+
+    hoje = datetime.now(timezone.utc).date().isoformat()
+    md = relatorio.gerar(con, hoje)
+    assert "sem prazo publicado" in md
+
+
+def test_varrer_prazo_malformado_nao_quebra_e_nao_e_vencida(tmp_path, monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    con = db.conectar(tmp_path / "t.sqlite")
+
+    def extrair_falso(texto, fonte, chamar=None):
+        return [
+            Oportunidade(
+                titulo="Consultoria com prazo a definir",
+                objeto="plataforma de dados",
+                url="https://www.wribrasil.org.br/media/a-definir.pdf",
+                prazo="a definir",
+            )
+        ]
+
+    monkeypatch.setattr(pipeline.extrai, "extrair", extrair_falso)
+    pipeline.varrer(con, [FONTE], cliente_falso(), usar_llm=False, pausar=lambda _: None)
+
+    linha = con.execute("SELECT status FROM oportunidades").fetchone()
+    assert linha["status"] != "vencida"
+
+
+def test_retriar_move_prazo_ja_vencido_para_vencida(tmp_path, monkeypatch):
+    """Correcao 1: retriar tem que migrar para 'vencida' um item historico
+    JA JULGADO (score_llm setado, como o item real da Abong com prazo
+    2021-03-10 que uma rodada antiga rankeou score 6) — nao so' os itens
+    nunca julgados."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    con = db.conectar(tmp_path / "t.sqlite")
+    novas, _ = pipeline.oportunidades.salvar(
+        con, {"id": "abong", "nome": "Abong"}, "catalogo",
+        [
+            Oportunidade(
+                titulo="Abong contrata consultoria em comunicacao para "
+                "criacao de campanha digital",
+                url="https://abong.org.br/oportunidades/campanha",
+                prazo="2021-03-10",
+            )
+        ],
+    )
+    con.execute(
+        "UPDATE oportunidades SET score_llm=6, justificativa_llm='ok', "
+        "modelo_llm='m', status='reportada' WHERE id=?",
+        (novas[0],),
+    )
+    con.commit()
+
+    mudou = pipeline.retriar(con, usar_llm=False)
+
+    linha = con.execute(
+        "SELECT status FROM oportunidades WHERE id=?", (novas[0],)
+    ).fetchone()
+    assert linha["status"] == "vencida"
+    assert mudou == 1
+
+
 def test_retriar_move_descartada_kw_nao_vetada_para_nova(tmp_path, monkeypatch):
     """Migra linha presa em descartada_kw por classificacao antiga (score
     kw baixo sem veto, que a regra velha escondia e a regra nova nao

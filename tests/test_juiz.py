@@ -175,6 +175,22 @@ def test_aplicar_preserva_score_existente_em_falha_transitoria(tmp_path):
     assert linha["status"] == "reportada"
 
 
+def test_instrucao_veta_comunicacao_pura_mesmo_com_titulo_de_plataforma():
+    """Correcao 2: o prompt do juiz precisa dizer explicitamente que
+    comunicacao pura e' fora de escopo mesmo quando o titulo menciona
+    'plataforma', e nomear a armadilha real (WRI) que fez o juiz dar 8 para
+    uma consultoria de comunicacao. Nao verifica o score do modelo (isso
+    exigiria chamada de API) — so' que a instrucao carrega a distincao."""
+    texto = juiz.INSTRUCAO.lower()
+    assert "comunicação" in texto or "comunicacao" in texto
+    assert "entregável" in texto or "entregavel" in texto
+    assert "0 a 2" in juiz.INSTRUCAO
+    assert "plataforma" in texto
+    # nomeia a armadilha do caso real: titulo do WRI que pontuou 8 sendo
+    # comunicacao pura
+    assert "consultoria em comunicação para plataforma de restauração" in texto
+
+
 def test_aplicar_nunca_produz_descartada_llm(tmp_path):
     """Contrato novo: nada e' escondido so' por score de juiz. Score 0 tinha
     que virar 'triagem' (visivel), nunca 'descartada_llm' (que o relatorio

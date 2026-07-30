@@ -24,6 +24,15 @@ def construir_parser() -> argparse.ArgumentParser:
     b = sub.add_parser("bootstrap", help="confere a url de cada fonte do catalogo")
     b.add_argument("--fontes", help="ids separados por virgula")
 
+    rt = sub.add_parser(
+        "retriar",
+        help="reclassifica pelo funil atual linhas ainda nao julgadas (score_llm nulo)",
+    )
+    rt.add_argument(
+        "--sem-llm", dest="sem_llm", action="store_true",
+        help="so reclassifica pelo funil de keyword, sem chamar o juiz",
+    )
+
     return p
 
 
@@ -52,6 +61,12 @@ def main(argv=None) -> int:
 
     if args.comando == "bootstrap":
         pipeline.bootstrap(ids=_ids(args.fontes))
+        return 0
+
+    if args.comando == "retriar":
+        con = db.conectar()
+        mudou = pipeline.retriar(con, usar_llm=not args.sem_llm)
+        print(f"retriar: {mudou} linha(s) mudaram de status")
         return 0
 
     parser.print_help()

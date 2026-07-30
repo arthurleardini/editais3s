@@ -22,6 +22,7 @@ TEMAS: dict[str, int] = {
     "desenvolvimento do site": 5,
     "criacao de site": 5,
     "criacao do site": 5,
+    "desenvolvimento de plataforma": 5,
     # peso 4
     "dashboard": 4,
     "painel de dados": 4,
@@ -47,6 +48,8 @@ TEMAS: dict[str, int] = {
     "website": 4,
     "portal institucional": 4,
     "painel de monitoramento": 4,
+    "plataforma": 4,
+    "sistema web": 4,
     # peso 3
     "banco de dados": 3,
     "cms": 3,
@@ -64,6 +67,7 @@ TEMAS: dict[str, int] = {
     "portal": 3,
     "painel": 3,
     "paineis": 3,
+    "aplicativo": 3,
 }
 
 VETOS: tuple[str, ...] = (
@@ -120,9 +124,24 @@ def tem_veto(texto: str) -> bool:
     return any(_com_fronteira(alvo, termo) for _, termo in _VETOS.iter(alvo))
 
 
-def avaliar(texto: str) -> tuple[bool, int, list[str]]:
+def triar(texto: str) -> tuple[str, int, list[str]]:
+    """Classifica em 'vetado' | 'forte' | 'fraco'.
+
+    vetado: hit de veto sem nenhum tema de peso >= PESO_FORTE. Nao e oportunidade
+            de fornecedor (vaga, bolsa, premio, chamada de projetos).
+    forte:  score >= SCORE_KW_MINIMO. Match relevante, destacado no relatorio.
+    fraco:  qualquer outro caso. Vai ao juiz e ao relatorio, ranqueado abaixo.
+            Titulo curto sem descricao cai aqui — nunca em vetado.
+    """
     score, temas = pontuar(texto)
-    forte = any(TEMAS[t] >= PESO_FORTE for t in temas)
-    if tem_veto(texto) and not forte:
-        return False, score, temas
-    return score >= SCORE_KW_MINIMO, score, temas
+    forte_tema = any(TEMAS[t] >= PESO_FORTE for t in temas)
+    if tem_veto(texto) and not forte_tema:
+        return "vetado", score, temas
+    if score >= SCORE_KW_MINIMO:
+        return "forte", score, temas
+    return "fraco", score, temas
+
+
+def avaliar(texto: str) -> tuple[bool, int, list[str]]:
+    classe, score, temas = triar(texto)
+    return classe == "forte", score, temas

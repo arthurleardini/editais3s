@@ -35,3 +35,28 @@ def test_main_diario_chama_pipeline(monkeypatch):
     monkeypatch.setattr(cli.pipeline, "diario", falso)
     assert cli.main(["diario", "--fontes", "wri-brasil", "--sem-llm"]) == 0
     assert chamadas == {"ids": ["wri-brasil"], "forcar": False, "usar_llm": False}
+
+
+def test_parser_aceita_retriar_com_sem_llm():
+    args = cli.construir_parser().parse_args(["retriar", "--sem-llm"])
+    assert args.comando == "retriar"
+    assert args.sem_llm is True
+
+
+def test_parser_aceita_retriar_sem_flags():
+    args = cli.construir_parser().parse_args(["retriar"])
+    assert args.comando == "retriar"
+    assert args.sem_llm is False
+
+
+def test_main_retriar_chama_pipeline(monkeypatch):
+    chamadas = {}
+    monkeypatch.setattr(cli.db, "conectar", lambda: "CON-FALSO")
+
+    def falso(con, usar_llm=True):
+        chamadas.update(con=con, usar_llm=usar_llm)
+        return 3
+
+    monkeypatch.setattr(cli.pipeline, "retriar", falso)
+    assert cli.main(["retriar", "--sem-llm"]) == 0
+    assert chamadas == {"con": "CON-FALSO", "usar_llm": False}

@@ -108,3 +108,54 @@ def test_termo_composto_casa_plural_da_ultima_palavra():
     score, temas = escopo.pontuar("implantacao de canal de denuncias institucional")
     assert score >= SCORE_KW_MINIMO
     assert "canal de denuncia" in temas
+
+
+def test_triar_vaga_de_emprego_e_vetado():
+    classe, score, temas = escopo.triar(
+        "Vaga de emprego: analista administrativo"
+    )
+    assert classe == "vetado"
+
+
+def test_triar_chamada_de_projetos_sem_tema_forte_e_vetado():
+    classe, score, temas = escopo.triar(
+        "Chamada de projetos para apoio a iniciativas comunitarias"
+    )
+    assert classe == "vetado"
+
+
+def test_triar_titulo_curto_sem_objeto_e_sem_veto_e_fraco_nunca_vetado():
+    """O caso CI-Brasil generico: titulo curto, sem 'objeto' (pagina do
+    financiador so' lista links), sem nenhum termo do dicionario -> score 0.
+    Nao ha veto aqui, entao a classe tem que ser 'fraco', nunca 'vetado' —
+    'fraco' ainda vai ao juiz e ao relatorio; 'vetado' e' descarte definitivo."""
+    classe, score, temas = escopo.triar(
+        "Contratação de consultoria de pessoa jurídica para apoio administrativo"
+    )
+    assert classe == "fraco"
+    assert score == 0
+    assert classe != "vetado"
+
+
+def test_triar_fixture_ci_brasil_nao_e_vetado():
+    """Fixture literal do incidente real (seis editais da Conservacao
+    Internacional gravados e depois escondidos). Nota: com 'plataforma'
+    (peso 4) adicionado ao dicionario nesta mudanca, este titulo especifico
+    pontua 4 e classifica 'forte', nao 'fraco' como a especificacao original
+    presumia — a preposicao no titulo real e' 'desenvolvimento DA plataforma'
+    (nao 'DE plataforma', que so' bateria no termo composto de peso 5) mas
+    'plataforma' sozinha ja basta. O invariante que importa continua valendo
+    e e' o que este teste prova: nunca vira 'vetado', entao nunca
+    descartada_kw, entao nunca some do relatorio."""
+    classe, score, temas = escopo.triar(
+        "Contratação de consultoria de pessoa jurídica para o desenvolvimento "
+        "da plataforma da Aceleradora de Impacto"
+    )
+    assert classe != "vetado"
+
+
+def test_avaliar_continua_equivalente_a_triar_forte():
+    aprovado, score, temas = escopo.avaliar("Desenvolvimento de dashboard gerencial")
+    classe, score2, temas2 = escopo.triar("Desenvolvimento de dashboard gerencial")
+    assert aprovado == (classe == "forte")
+    assert (score, temas) == (score2, temas2)

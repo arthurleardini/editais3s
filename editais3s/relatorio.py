@@ -3,6 +3,7 @@ import sqlite3
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
+from . import escopo
 from .config import (
     DIAS_SEM_ITEM_ALERTA,
     DIR_DADOS,
@@ -23,8 +24,19 @@ def _celula(valor) -> str:
     return str(valor).replace("|", "/").replace("\n", " ").strip()
 
 
+def _match_forte(o: sqlite3.Row) -> bool:
+    """True se algum termo em temas_kw tem peso 5 no dicionario de escopo —
+    o hit "completo" que o dono quer ver destacado no relatorio, nao apenas
+    ranqueado. temas_kw e' salvo como string separada por virgula."""
+    temas_kw = o["temas_kw"] or ""
+    termos = [t.strip() for t in temas_kw.split(",") if t.strip()]
+    return any(escopo.TEMAS.get(t, 0) >= 5 for t in termos)
+
+
 def _linha(o: sqlite3.Row) -> str:
     titulo = _celula(o["titulo"])
+    if _match_forte(o):
+        titulo = f"★ {titulo}"
     url = _celula(o["url"])
     rotulo = f"[{titulo}]({url})" if url else titulo
     fonte_nome = _celula(o["fonte_nome"])
@@ -45,11 +57,13 @@ def _tabela(titulo: str, linhas: list[sqlite3.Row]) -> str:
 
 
 def _do_dia(con: sqlite3.Connection, data: str) -> list[sqlite3.Row]:
+    # so 'descartada_kw' (veto — provadamente fora de escopo) fica de fora.
+    # 'triagem' (score de juiz abaixo do corte) tem que aparecer: o funil
+    # ranqueia, nao esconde.
     return con.execute(
         """
         SELECT * FROM oportunidades
          WHERE (visto_em LIKE ? OR atualizado_em LIKE ?)
-           AND status != 'descartada_llm'
            AND status != 'descartada_kw'
          ORDER BY COALESCE(score_llm, -1) DESC, prazo IS NULL, prazo
         """,
@@ -72,7 +86,7 @@ def _apertadas(con: sqlite3.Connection, data: str) -> list[sqlite3.Row]:
     """Prazo apertado independe de quando o item foi visto: um item captado
     ha semanas com prazo se aproximando tem que continuar aparecendo aqui
     todo dia ate o prazo passar. So exclui descartada_kw (veto de keyword —
-    genuinamente fora do escopo); nova/reportada/descartada_llm continuam,
+    genuinamente fora do escopo); nova/reportada/triagem continuam,
     porque este bloco ignora score de proposito."""
     linhas = con.execute(
         "SELECT * FROM oportunidades WHERE status != 'descartada_kw' "
@@ -125,13 +139,23 @@ def gerar(con: sqlite3.Connection, data: str, execucao: dict | None = None) -> s
             "financiador (catálogo marcado `verificar`).\n"
         )
 
+    if any(_match_forte(o) for o in list(itens) + list(apertadas)):
+        partes.append("> ★ = match forte no funil de palavra-chave.\n")
+
     if execucao:
+        # execucao['novas'] e' o contador real da varredura. len(novas) so
+        # conta o que sobreviveu ate aqui (_do_dia ja filtrou descartada_kw),
+        # entao usar o contador local aqui e' o que fazia o cabecalho dizer
+        # "novas: 0" no mesmo run cujo stdout dizia "5 novas".
+        novas_no_cabecalho = execucao.get("novas")
+        if novas_no_cabecalho is None:
+            novas_no_cabecalho = len(novas)
         partes.append(
             "Fontes ok: {ok} · fontes com erro: {erro} · novas: {novas} · "
             "custo: US$ {custo:.2f}\n".format(
                 ok=execucao.get("fontes_ok", 0),
                 erro=execucao.get("fontes_erro", 0),
-                novas=len(novas),
+                novas=novas_no_cabecalho,
                 custo=float(execucao.get("custo_usd") or 0.0),
             )
         )
@@ -151,6 +175,10 @@ def gerar(con: sqlite3.Connection, data: str, execucao: dict | None = None) -> s
         and SCORE_LLM_OLHAR <= o["score_llm"] < SCORE_LLM_ADERENTE
     ]
     nao_julgadas = [o for o in novas if o["score_llm"] is None]
+    triagem = [
+        o for o in itens
+        if o["score_llm"] is None or o["score_llm"] < SCORE_LLM_OLHAR
+    ]
 
     for titulo, grupo in (
         (f"Prazo apertado (≤ {PRAZO_APERTADO_DIAS} dias)", apertadas),
@@ -158,6 +186,7 @@ def gerar(con: sqlite3.Connection, data: str, execucao: dict | None = None) -> s
         ("Olhar", olhar),
         ("Nao julgadas", nao_julgadas),
         ("Atualizadas", atualizadas),
+        ("Triagem", triagem),
     ):
         bloco = _tabela(titulo, grupo)
         if bloco:

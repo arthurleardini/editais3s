@@ -148,7 +148,7 @@ def aplicar(con: sqlite3.Connection, julgados: list[dict]) -> None:
             # inserido ja nasce 'nova' (default do INSERT), entao pular aqui
             # nao perde nada; um item ja julgado antes mantem o score bom.
             continue
-        status = "descartada_llm" if score < SCORE_LLM_OLHAR else "reportada"
+        status = "reportada" if score >= SCORE_LLM_OLHAR else "triagem"
         con.execute(
             """
             UPDATE oportunidades

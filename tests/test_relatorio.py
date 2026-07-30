@@ -49,8 +49,12 @@ def test_score_intermediario_vai_para_olhar(tmp_path):
 
 
 def test_descartada_nao_aparece(tmp_path):
+    # Contrato novo: so descartada_kw (veto de keyword) fica de fora do
+    # relatorio. descartada_llm nao e' mais produzida (juiz.aplicar agora
+    # manda score baixo para 'triagem', que E' visivel) — este teste passou
+    # a cobrir o unico status de descarte que sobrou.
     con = db.conectar(tmp_path / "t.sqlite")
-    semear(con, id="i3", score_llm=1, status="descartada_llm", titulo="Locacao de van")
+    semear(con, id="i3", score_llm=1, status="descartada_kw", titulo="Locacao de van")
     assert "Locacao de van" not in relatorio.gerar(con, HOJE)
 
 
@@ -245,3 +249,56 @@ def test_fonte_a_verificar_ganha_marcador_no_relatorio(tmp_path):
     assert "⚠" in linha_nao_confirmada
     assert "⚠" not in linha_confirmada
     assert "⚠" in md.split("## Aderentes")[0]  # legenda antes das tabelas
+
+
+def test_triagem_score_baixo_aparece_e_nao_e_escondida(tmp_path):
+    """Contrato novo: score de juiz abaixo do corte vira status 'triagem',
+    visivel no relatorio (bloco proprio), nao mais 'descartada_llm'
+    (escondida)."""
+    con = db.conectar(tmp_path / "t.sqlite")
+    semear(
+        con, id="i15", titulo="TdR fraco julgado", score_llm=2,
+        status="triagem", justificativa_llm="fora do escopo mas nao vetado",
+    )
+    md = relatorio.gerar(con, HOJE)
+    assert "## Triagem" in md
+    bloco = md.split("## Triagem")[1]
+    assert "TdR fraco julgado" in bloco
+
+
+def test_marcador_forte_aparece_para_tema_peso_5(tmp_path):
+    con = db.conectar(tmp_path / "t.sqlite")
+    semear(con, id="i16", titulo="TdR com tema forte", temas_kw="plataforma de dados")
+    md = relatorio.gerar(con, HOJE)
+    linha = [l for l in md.splitlines() if "TdR com tema forte" in l][0]
+    assert "★" in linha
+    assert "★ = match forte" in md
+
+
+def test_marcador_forte_ausente_para_tema_peso_3(tmp_path):
+    con = db.conectar(tmp_path / "t.sqlite")
+    semear(con, id="i17", titulo="TdR so com tema fraco", temas_kw="api")
+    md = relatorio.gerar(con, HOJE)
+    linha = [l for l in md.splitlines() if "TdR so com tema fraco" in l][0]
+    assert "★" not in linha
+
+
+def test_legenda_forte_so_aparece_quando_ha_marcador(tmp_path):
+    con = db.conectar(tmp_path / "t.sqlite")
+    semear(con, id="i18", titulo="TdR sem tema forte", temas_kw="api")
+    md = relatorio.gerar(con, HOJE)
+    assert "★ = match forte" not in md
+
+
+def test_cabecalho_novas_bate_com_execucao(tmp_path):
+    """Achado do incidente CI-Brasil: o cabecalho recontava linhas
+    renderizadas (que o funil ja tinha escondido) em vez de usar o contador
+    real da execucao, e imprimia 'novas: 0' no mesmo run cujo stdout dizia
+    '5 novas'. Semeia 1 linha so' (contagem local seria 1) e pede
+    execucao['novas']=5 para provar que o cabecalho usa o contador real."""
+    con = db.conectar(tmp_path / "t.sqlite")
+    semear(con)
+    md = relatorio.gerar(
+        con, HOJE, execucao={"fontes_ok": 3, "fontes_erro": 0, "novas": 5}
+    )
+    assert "novas: 5" in md

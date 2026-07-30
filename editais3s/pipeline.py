@@ -89,14 +89,18 @@ def varrer(
                 "WHERE id=?",
                 (oid,),
             ).fetchone()
-            aprovado, score_kw, temas = escopo.avaliar(
+            classe, score_kw, temas = escopo.triar(
                 f"{linha['titulo']} {linha['objeto'] or ''}"
             )
             con.execute(
                 "UPDATE oportunidades SET score_kw=?, temas_kw=? WHERE id=?",
                 (score_kw, ", ".join(temas), oid),
             )
-            if aprovado:
+            if classe != "vetado":
+                # forte ou fraco: o funil ranqueia, nao esconde. Ambos vao ao
+                # juiz — um item fraco (titulo curto sem objeto, por exemplo)
+                # so foi provado "fora de escopo" se o veto disser isso, e
+                # veto sem tema forte e' vetado, nao fraco.
                 pendentes.append(dict(linha))
             elif linha["score_llm"] is None:
                 # so descarta por keyword quem o juiz nunca viu. Um item ja
@@ -180,3 +184,42 @@ def bootstrap(ids: list[str] | None = None, cliente=None) -> list[dict]:
     for a in achados:
         print(f"{a['id']}: {a['situacao']} {a.get('url_final', '')}")
     return achados
+
+
+def retriar(con: sqlite3.Connection, usar_llm: bool = True) -> int:
+    """Reclassifica pelo funil atual toda linha que o juiz nunca viu
+    (score_llm IS NULL). Migra linhas presas em status antigo (ex:
+    descartada_kw de uma classificacao de veto que a regra atual nao
+    reproduz mais) e manda as nao vetadas para o juiz. Devolve quantas
+    linhas mudaram de status, do inicio ao fim (inclui o efeito do juiz)."""
+    linhas = con.execute(
+        "SELECT id, titulo, objeto, fonte_nome, status FROM oportunidades "
+        "WHERE score_llm IS NULL"
+    ).fetchall()
+    original = {l["id"]: l["status"] for l in linhas}
+    pendentes: list[dict] = []
+
+    for linha in linhas:
+        classe, score_kw, temas = escopo.triar(
+            f"{linha['titulo']} {linha['objeto'] or ''}"
+        )
+        novo_status = "descartada_kw" if classe == "vetado" else "nova"
+        con.execute(
+            "UPDATE oportunidades SET score_kw=?, temas_kw=?, status=? WHERE id=?",
+            (score_kw, ", ".join(temas), novo_status, linha["id"]),
+        )
+        if classe != "vetado":
+            pendentes.append(dict(linha))
+    con.commit()
+
+    if usar_llm and pendentes:
+        juiz.aplicar(con, juiz.julgar(pendentes))
+
+    if not original:
+        return 0
+    marcador = ",".join("?" * len(original))
+    finais = con.execute(
+        f"SELECT id, status FROM oportunidades WHERE id IN ({marcador})",
+        tuple(original),
+    ).fetchall()
+    return sum(1 for f in finais if f["status"] != original[f["id"]])

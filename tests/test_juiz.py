@@ -76,7 +76,10 @@ def test_aplicar_grava_no_banco(tmp_path):
     assert linha["status"] == "reportada"
 
 
-def test_aplicar_marca_descarte_abaixo_da_faixa(tmp_path):
+def test_aplicar_marca_triagem_abaixo_da_faixa(tmp_path):
+    # Contrato novo: score abaixo do corte nao e' mais escondido
+    # ('descartada_llm' saiu de circulacao) — vira 'triagem', visivel no
+    # relatorio, ranqueado por ultimo.
     con = db.conectar(tmp_path / "t.sqlite")
     novas, _ = oportunidades.salvar(
         con, FONTE, "catalogo", [Oportunidade(titulo="T", url="https://a.org/y")]
@@ -86,7 +89,7 @@ def test_aplicar_marca_descarte_abaixo_da_faixa(tmp_path):
         [{"id": novas[0], "score_llm": 1, "justificativa_llm": "fora", "modelo_llm": "m"}],
     )
     linha = con.execute("SELECT status FROM oportunidades WHERE id=?", (novas[0],)).fetchone()
-    assert linha["status"] == "descartada_llm"
+    assert linha["status"] == "triagem"
 
 
 def test_score_negativo_e_normalizado_para_zero():
@@ -170,3 +173,20 @@ def test_aplicar_preserva_score_existente_em_falha_transitoria(tmp_path):
     assert linha["justificativa_llm"] == "casa com o caso WRI"
     assert linha["modelo_llm"] == "claude-haiku-4-5"
     assert linha["status"] == "reportada"
+
+
+def test_aplicar_nunca_produz_descartada_llm(tmp_path):
+    """Contrato novo: nada e' escondido so' por score de juiz. Score 0 tinha
+    que virar 'triagem' (visivel), nunca 'descartada_llm' (que o relatorio
+    filtrava)."""
+    con = db.conectar(tmp_path / "t.sqlite")
+    novas, _ = oportunidades.salvar(
+        con, FONTE, "catalogo", [Oportunidade(titulo="T", url="https://a.org/zero")]
+    )
+    juiz.aplicar(
+        con,
+        [{"id": novas[0], "score_llm": 0, "justificativa_llm": "fora", "modelo_llm": "m"}],
+    )
+    linha = con.execute("SELECT status FROM oportunidades WHERE id=?", (novas[0],)).fetchone()
+    assert linha["status"] == "triagem"
+    assert linha["status"] != "descartada_llm"

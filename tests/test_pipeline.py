@@ -342,3 +342,100 @@ def test_diario_aceita_data_explicita_e_usa_no_caminho_do_relatorio(
     caminho = pipeline.diario(usar_llm=False, data=data_explicita)
     assert caminho.name == f"novas_{data_explicita}.md"
     assert caminho.exists()
+
+
+def test_varrer_item_fraco_sem_veto_nao_e_escondido(tmp_path, monkeypatch):
+    """Contrato novo: o funil ranqueia, nunca esconde quem nao e' vetado.
+    Fixture literal do incidente real CI-Brasil (titulo bare, sem 'objeto' —
+    a pagina do financiador so' lista links) junto com um segundo titulo
+    puramente fraco (score 0, sem nenhum termo do dicionario), para cobrir os
+    dois casos sem veto: 'forte' (o titulo real, que agora pontua 4 por causa
+    do termo 'plataforma' adicionado nesta mudanca) e 'fraco' (score 0)."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    con = db.conectar(tmp_path / "t.sqlite")
+
+    pagina = """<body><h1>Oportunidades</h1>
+<ul>
+<li><a href="/oport/aceleradora">Contratação de consultoria de pessoa jurídica para o desenvolvimento da plataforma da Aceleradora de Impacto</a></li>
+<li><a href="/oport/generico">Contratação de consultoria de pessoa jurídica para apoio administrativo</a></li>
+</ul></body>"""
+
+    def cliente():
+        def handler(request):
+            if request.url.path == "/robots.txt":
+                return httpx.Response(404, text="")
+            return httpx.Response(200, text=pagina)
+        return httpx.Client(transport=httpx.MockTransport(handler))
+
+    pipeline.varrer(con, [FONTE], cliente(), usar_llm=False, pausar=lambda _: None)
+    linhas = {l["titulo"]: dict(l) for l in con.execute("SELECT * FROM oportunidades")}
+
+    forte = [t for t in linhas if "Aceleradora de Impacto" in t]
+    assert forte, "titulo CI-Brasil (real) nao chegou ao banco"
+    assert linhas[forte[0]]["status"] == "nova"
+    assert linhas[forte[0]]["status"] != "descartada_kw"
+
+    fraco = [t for t in linhas if "apoio administrativo" in t]
+    assert fraco, "titulo fraco (score 0) nao chegou ao banco"
+    assert linhas[fraco[0]]["score_kw"] == 0
+    assert linhas[fraco[0]]["status"] == "nova"
+    assert linhas[fraco[0]]["status"] != "descartada_kw"
+
+    hoje = datetime.now(timezone.utc).date().isoformat()
+    md = relatorio.gerar(con, hoje)
+    assert "Aceleradora de Impacto" in md
+    assert "apoio administrativo" in md
+
+
+def test_varrer_vetado_sem_tema_forte_fica_descartada_kw_e_fora_do_relatorio(
+    tmp_path, monkeypatch
+):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    con = db.conectar(tmp_path / "t.sqlite")
+
+    def extrair_falso(texto, fonte, chamar=None):
+        return [
+            Oportunidade(
+                titulo="Vaga de emprego: analista administrativo",
+                url="https://www.wribrasil.org.br/vagas/analista",
+            )
+        ]
+
+    monkeypatch.setattr(pipeline.extrai, "extrair", extrair_falso)
+    pipeline.varrer(con, [FONTE], cliente_falso(), usar_llm=True, pausar=lambda _: None)
+
+    linha = con.execute("SELECT status FROM oportunidades").fetchone()
+    assert linha["status"] == "descartada_kw"
+
+    hoje = datetime.now(timezone.utc).date().isoformat()
+    md = relatorio.gerar(con, hoje)
+    assert "Vaga de emprego" not in md
+
+
+def test_retriar_move_descartada_kw_nao_vetada_para_nova(tmp_path, monkeypatch):
+    """Migra linha presa em descartada_kw por classificacao antiga (score
+    kw baixo sem veto, que a regra velha escondia e a regra nova nao
+    esconde mais). Fixture: o titulo real do CI-Brasil, gravado
+    descartada_kw numa rodada anterior ao fix."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    con = db.conectar(tmp_path / "t.sqlite")
+    novas, _ = pipeline.oportunidades.salvar(
+        con, {"id": "ci-brasil", "nome": "CI Brasil"}, "catalogo",
+        [
+            Oportunidade(
+                titulo=(
+                    "Contratação de consultoria de pessoa jurídica para o "
+                    "desenvolvimento da plataforma da Aceleradora de Impacto"
+                ),
+                url="https://ci-brasil.org/oportunidades/x",
+            )
+        ],
+    )
+    con.execute("UPDATE oportunidades SET status='descartada_kw' WHERE id=?", (novas[0],))
+    con.commit()
+
+    mudou = pipeline.retriar(con, usar_llm=False)
+
+    linha = con.execute("SELECT status FROM oportunidades WHERE id=?", (novas[0],)).fetchone()
+    assert linha["status"] == "nova"
+    assert mudou == 1

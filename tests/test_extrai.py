@@ -52,6 +52,18 @@ def test_extrair_descarta_item_sem_titulo():
     assert [o.titulo for o in ops] == ["Ok"]
 
 
+def test_extrair_derruba_prazo_unknown_para_none():
+    # Dano real: o modelo devolveu o literal '<UNKNOWN>' como prazo (seu
+    # placeholder para "nao achei data") e isso foi gravado como se fosse
+    # deadline. _monta tem que passar prazo por normalizar_prazo e descartar
+    # qualquer placeholder.
+    payload = {
+        "oportunidades": [{"titulo": "TdR sem data reconhecida", "prazo": "<UNKNOWN>"}]
+    }
+    ops = extrai.extrair(TEXTO, FONTE, chamar=lambda texto, fonte: payload)
+    assert ops[0].prazo is None
+
+
 def test_extrair_com_payload_vazio():
     ops = extrai.extrair(TEXTO, FONTE, chamar=lambda texto, fonte: {"oportunidades": []})
     assert ops == []

@@ -582,6 +582,94 @@ def test_retriar_revive_vencida_dentro_da_nova_tolerancia(tmp_path, monkeypatch)
     assert linha["status"] == "reportada"
 
 
+def test_retriar_normaliza_prazo_br_e_aparece_no_bloco_de_prazo_apertado(
+    tmp_path, monkeypatch
+):
+    """Uma linha gravada antes do fix com prazo em formato brasileiro
+    ('10/08/2026', o financiador escreve assim e o modelo as vezes ecoa o
+    formato da fonte em vez de converter) tem que ser normalizada por
+    retriar para ISO e, so' entao, aparecer no bloco 'Prazo apertado' do
+    relatorio quando a data cai dentro da janela."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    con = db.conectar(tmp_path / "t.sqlite")
+    novas, _ = pipeline.oportunidades.salvar(
+        con, {"id": "wri-brasil", "nome": "WRI Brasil"}, "catalogo",
+        [
+            Oportunidade(
+                titulo="TdR Geoespacial de Restauracao: monitoramento e avaliacao",
+                url="https://www.wribrasil.org.br/tdr-geo",
+                prazo="10/08/2026",
+            )
+        ],
+    )
+
+    pipeline.retriar(con, usar_llm=False)
+
+    linha = con.execute(
+        "SELECT prazo FROM oportunidades WHERE id=?", (novas[0],)
+    ).fetchone()
+    assert linha["prazo"] == "2026-08-10"
+
+    md = relatorio.gerar(con, "2026-08-05")
+    bloco = md.split("## Prazo apertado")[1].split("##")[0]
+    assert "TdR Geoespacial de Restauracao" in bloco
+
+
+def test_retriar_normaliza_antes_de_classificar_vencida(tmp_path, monkeypatch):
+    """Ordem importa: um prazo BR ('10-08-2020') que so vira data valida
+    APOS normalizar_prazo tem que ser classificado 'vencida' na MESMA
+    chamada de retriar. Se a checagem de vencida rodasse sobre o valor
+    ainda sujo (regex ISO nao casa DD-MM-AAAA), a linha nunca seria
+    marcada vencida nesta rodada e ficaria presa com um veredito de
+    expiracao desatualizado."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    con = db.conectar(tmp_path / "t.sqlite")
+    novas, _ = pipeline.oportunidades.salvar(
+        con, {"id": "wri-brasil", "nome": "WRI Brasil"}, "catalogo",
+        [
+            Oportunidade(
+                titulo="TdR Geoespacial antigo com prazo BR ja expirado",
+                url="https://www.wribrasil.org.br/tdr-geo-antigo",
+                prazo="10-08-2020",
+            )
+        ],
+    )
+
+    pipeline.retriar(con, usar_llm=False)
+
+    linha = con.execute(
+        "SELECT prazo, status FROM oportunidades WHERE id=?", (novas[0],)
+    ).fetchone()
+    assert linha["prazo"] == "2020-08-10"
+    assert linha["status"] == "vencida"
+
+
+def test_retriar_regressao_prazo_futuro_real_continua_no_bloco_apertado(
+    tmp_path, monkeypatch
+):
+    """Guarda de regressao: um item cujo prazo ja e' uma data ISO real e
+    futura nao pode deixar de chegar ao bloco 'Prazo apertado' por causa da
+    normalizacao introduzida em retriar."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    con = db.conectar(tmp_path / "t.sqlite")
+    novas, _ = pipeline.oportunidades.salvar(
+        con, {"id": "wri-brasil", "nome": "WRI Brasil"}, "catalogo",
+        [
+            Oportunidade(
+                titulo="TdR Geoespacial de Restauracao: sensoriamento remoto",
+                url="https://www.wribrasil.org.br/tdr-geo-2",
+                prazo="2026-08-10",
+            )
+        ],
+    )
+
+    pipeline.retriar(con, usar_llm=False)
+
+    md = relatorio.gerar(con, "2026-08-05")
+    bloco = md.split("## Prazo apertado")[1].split("##")[0]
+    assert "TdR Geoespacial de Restauracao" in bloco
+
+
 def test_retriar_move_descartada_kw_nao_vetada_para_nova(tmp_path, monkeypatch):
     """Migra linha presa em descartada_kw por classificacao antiga (score
     kw baixo sem veto, que a regra velha escondia e a regra nova nao

@@ -15,7 +15,7 @@ import re
 from urllib.parse import urljoin
 
 from .config import MAX_TOKENS_EXTRACAO, MODELO_EXTRACAO, tem_api_key
-from .modelos import Oportunidade
+from .modelos import Oportunidade, normalizar_prazo
 
 # ~8.000 caracteres por chamada com ~500 de sobreposição: grande o bastante
 # pra manter contexto por chamada, pequeno o bastante pra sobrar orçamento de
@@ -110,7 +110,7 @@ def _monta(item: dict, fonte: dict) -> Oportunidade | None:
         titulo=titulo,
         objeto=(item.get("objeto") or "").strip(),
         url=url,
-        prazo=(item.get("prazo") or "").strip() or None,
+        prazo=normalizar_prazo(item.get("prazo")),
         modalidade=item.get("modalidade") or "indefinido",
         valor_texto=(item.get("valor_texto") or "").strip() or None,
     )

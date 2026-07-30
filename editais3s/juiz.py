@@ -2,6 +2,7 @@
 import sqlite3
 
 from .config import MODELO_JUIZ, SCORE_LLM_OLHAR, tem_api_key
+from .modelos import normalizar_prazo
 
 SCHEMA = {
     "type": "object",
@@ -138,7 +139,7 @@ def julgar(itens: list[dict], chamar=None) -> list[dict]:
                 "id": i["id"],
                 "score_llm": score,
                 "justificativa_llm": (a.get("justificativa") or "").strip() or None,
-                "prazo": (a.get("prazo") or "").strip() or None,
+                "prazo": normalizar_prazo(a.get("prazo")),
                 "modalidade": a.get("modalidade"),
                 "modelo_llm": MODELO_JUIZ,
             }
@@ -177,7 +178,7 @@ def aplicar(con: sqlite3.Connection, julgados: list[dict]) -> None:
             """,
             (
                 score, j.get("justificativa_llm"), j.get("modelo_llm"), status,
-                j.get("prazo"), j.get("modalidade"), j["id"],
+                normalizar_prazo(j.get("prazo")), j.get("modalidade"), j["id"],
             ),
         )
     con.commit()

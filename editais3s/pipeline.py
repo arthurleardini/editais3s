@@ -8,6 +8,7 @@ import httpx
 
 from . import coleta, db, escopo, extrai, fontes as cat, juiz, oportunidades, relatorio
 from .config import INTERVALO_DOMINIO, SCORE_LLM_OLHAR, TIMEOUT, UA, tem_api_key
+from .modelos import normalizar_prazo
 
 TRILHA = "catalogo"
 
@@ -210,6 +211,23 @@ def retriar(con: sqlite3.Connection, usar_llm: bool = True) -> int:
     fora do relatorio. Devolve quantas linhas mudaram de status, do inicio
     ao fim (inclui o efeito do juiz)."""
     hoje = datetime.now(timezone.utc).date()
+
+    # Normaliza prazo em toda linha ja gravada (placeholder do modelo tipo
+    # '<UNKNOWN>' vira NULL, DD/MM/AAAA vira ISO) ANTES de qualquer
+    # reclassificacao que dependa de prazo. 'vencida' e' derivado de prazo —
+    # normalizar depois deixaria uma linha recem-limpa de lixo com um
+    # veredito de expiracao calculado em cima do valor velho (sujo).
+    a_normalizar = con.execute(
+        "SELECT id, prazo FROM oportunidades WHERE prazo IS NOT NULL"
+    ).fetchall()
+    for l in a_normalizar:
+        prazo_normalizado = normalizar_prazo(l["prazo"])
+        if prazo_normalizado != l["prazo"]:
+            con.execute(
+                "UPDATE oportunidades SET prazo=? WHERE id=?",
+                (prazo_normalizado, l["id"]),
+            )
+    con.commit()
 
     candidatas_prazo = con.execute(
         "SELECT id, prazo, status, score_llm FROM oportunidades WHERE prazo IS NOT NULL"

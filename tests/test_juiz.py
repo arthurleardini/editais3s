@@ -128,6 +128,36 @@ def test_aplicar_preserva_prazo_existente_quando_llm_nao_extrai(tmp_path):
     assert linha["modalidade"] == "chamada"
 
 
+def test_aplicar_com_prazo_placeholder_nao_sobrescreve_prazo_bom(tmp_path):
+    # '<UNKNOWN>' e' o placeholder real que o modelo devolveu quando nao
+    # achou data. juiz.aplicar tem que normalizar antes do COALESCE — sem
+    # isso o placeholder e' uma string nao-nula que sobrescreve um prazo
+    # bom ja gravado (COALESCE so protege contra NULL).
+    con = db.conectar(tmp_path / "t.sqlite")
+    novas, _ = oportunidades.salvar(
+        con, FONTE, "catalogo", [Oportunidade(titulo="T", url="https://a.org/placeholder")]
+    )
+    con.execute(
+        "UPDATE oportunidades SET prazo=? WHERE id=?", ("2026-08-10", novas[0])
+    )
+    con.commit()
+    juiz.aplicar(
+        con,
+        [
+            {
+                "id": novas[0],
+                "score_llm": 8,
+                "justificativa_llm": "ok",
+                "modelo_llm": "m",
+                "prazo": "<UNKNOWN>",
+                "modalidade": None,
+            }
+        ],
+    )
+    linha = con.execute("SELECT prazo FROM oportunidades WHERE id=?", (novas[0],)).fetchone()
+    assert linha["prazo"] == "2026-08-10"
+
+
 def test_aplicar_preserva_score_existente_em_falha_transitoria(tmp_path):
     """Achado 2: uma falha transitoria do juiz (score_llm=None) nao pode
     apagar um score que uma rodada anterior ja tinha gravado."""

@@ -19,12 +19,25 @@ def test_tdr_ouvidoria_do_wri_pontua_acima_do_minimo():
 
 
 def test_cada_tema_conta_uma_vez():
-    score_um, _ = escopo.pontuar("plataforma de dados")
-    score_repetido, temas = escopo.pontuar(
-        "plataforma de dados, plataforma de dados, plataforma de dados"
-    )
+    # "ouvidoria" nao tem termo mais curto sobreposto no dicionario — repetir o
+    # texto nao pode multiplicar o score, e a lista de temas fica exata.
+    # ("plataforma de dados" deixou de servir pra esse teste: ela agora
+    # sobrepoe com o termo solto "plataforma", peso 4, adicionado nesta
+    # mudanca — ver test_termos_sobrepostos_somam_os_dois logo abaixo.)
+    score_um, temas_um = escopo.pontuar("ouvidoria")
+    score_repetido, temas_repetido = escopo.pontuar("ouvidoria ouvidoria ouvidoria")
     assert score_um == score_repetido
-    assert temas == ["plataforma de dados"]
+    assert temas_um == temas_repetido == ["ouvidoria"]
+
+
+def test_termos_sobrepostos_somam_os_dois():
+    # "plataforma de dados" (5) contem "plataforma" (4): os dois contam de
+    # proposito. Sob o contrato novo o score ordena e destaca, nao esconde,
+    # entao inflacao de peso em termo aderente e' aceitavel — ela sobe o item
+    # no ranking.
+    score, temas = escopo.pontuar("plataforma de dados")
+    assert set(temas) == {"plataforma de dados", "plataforma"}
+    assert score == escopo.TEMAS["plataforma de dados"] + escopo.TEMAS["plataforma"]
 
 
 def test_texto_irrelevante_pontua_zero():

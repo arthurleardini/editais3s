@@ -13,6 +13,11 @@ UA = (
     "+mailto:arthurlorenzoleardini@gmail.com)"
 )
 TIMEOUT = 20.0
+TIMEOUT_NAVEGADOR = 45.0
+UA_NAVEGADOR = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+)
 TENTATIVAS = 2
 CONCORRENCIA = 6
 INTERVALO_DOMINIO = 1.0

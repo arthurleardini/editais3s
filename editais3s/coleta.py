@@ -8,6 +8,7 @@ from urllib.parse import urljoin
 import httpx
 
 from . import limpeza
+from . import navegador as nav
 from .config import TENTATIVAS, UA
 
 
@@ -67,34 +68,20 @@ def _gravar_erro(con: sqlite3.Connection, fonte_id: str, status, erro: str) -> N
     con.commit()
 
 
-def coletar(
-    fonte: dict,
+def _processar(
+    fonte_id: str,
     con: sqlite3.Connection,
-    cliente: httpx.Client,
-    forcar: bool = False,
+    status: int,
+    texto_bruto: str,
+    tamanho_bytes: int,
+    forcar: bool,
 ) -> Coleta:
-    fonte_id = fonte["id"]
+    if status >= 400:
+        erro = f"HTTP {status}"
+        _gravar_erro(con, fonte_id, status, erro)
+        return Coleta(fonte_id, ok=False, mudou=False, http_status=status, erro=erro)
 
-    if fonte.get("js"):
-        erro = "indisponivel: requer navegador (js)"
-        _gravar_erro(con, fonte_id, None, erro)
-        return Coleta(fonte_id, ok=False, mudou=False, erro=erro)
-
-    try:
-        resp = _baixar(fonte["url"], cliente)
-    except httpx.HTTPError as exc:
-        erro = f"{type(exc).__name__}: {exc}"
-        _gravar_erro(con, fonte_id, None, erro)
-        return Coleta(fonte_id, ok=False, mudou=False, erro=erro)
-
-    if resp.status_code >= 400:
-        erro = f"HTTP {resp.status_code}"
-        _gravar_erro(con, fonte_id, resp.status_code, erro)
-        return Coleta(
-            fonte_id, ok=False, mudou=False, http_status=resp.status_code, erro=erro
-        )
-
-    texto = limpeza.limpar(resp.text)
+    texto = limpeza.limpar(texto_bruto)
     novo_hash = limpeza.hash_texto(texto)
     anterior = con.execute(
         "SELECT hash FROM snapshots WHERE fonte_id=?", (fonte_id,)
@@ -113,7 +100,7 @@ def coletar(
           erro=NULL,
           erros_seguidos=0
         """,
-        (fonte_id, novo_hash, _agora(), resp.status_code, len(resp.content)),
+        (fonte_id, novo_hash, _agora(), status, tamanho_bytes),
     )
     con.commit()
 
@@ -123,5 +110,42 @@ def coletar(
         mudou=mudou,
         texto=texto,
         hash=novo_hash,
-        http_status=resp.status_code,
+        http_status=status,
+    )
+
+
+def coletar(
+    fonte: dict,
+    con: sqlite3.Connection,
+    cliente: httpx.Client,
+    forcar: bool = False,
+) -> Coleta:
+    fonte_id = fonte["id"]
+
+    # "js" e o nome antigo do flag, mantido como sinonimo para nao quebrar
+    # entradas ja curadas no catalogo.
+    if fonte.get("navegador") or fonte.get("js"):
+        try:
+            status, html = nav.baixar(fonte["url"])
+        except nav.ErroNavegador as exc:
+            msg = str(exc)
+            if msg.startswith("playwright nao instalado"):
+                erro = "indisponivel: playwright nao instalado"
+            else:
+                erro = f"indisponivel: navegador: {msg}"
+            _gravar_erro(con, fonte_id, None, erro)
+            return Coleta(fonte_id, ok=False, mudou=False, erro=erro)
+        return _processar(
+            fonte_id, con, status, html, len(html.encode("utf-8")), forcar
+        )
+
+    try:
+        resp = _baixar(fonte["url"], cliente)
+    except httpx.HTTPError as exc:
+        erro = f"{type(exc).__name__}: {exc}"
+        _gravar_erro(con, fonte_id, None, erro)
+        return Coleta(fonte_id, ok=False, mudou=False, erro=erro)
+
+    return _processar(
+        fonte_id, con, resp.status_code, resp.text, len(resp.content), forcar
     )

@@ -1,7 +1,9 @@
+import sys
+
 import httpx
 import pytest
 
-from editais3s import coleta, db
+from editais3s import coleta, db, navegador
 
 FONTE = {
     "id": "wri-brasil",
@@ -83,12 +85,77 @@ def test_sucesso_zera_contador_de_erro(tmp_path):
     assert linha["erros_seguidos"] == 0
 
 
-def test_fonte_js_true_nao_e_baixada(tmp_path):
+def test_fonte_navegador_true_usa_navegador_e_nao_httpx(tmp_path, monkeypatch):
+    con = db.conectar(tmp_path / "t.sqlite")
+    fonte = {**FONTE, "navegador": True}
+    chamadas = {"navegador": 0, "httpx": 0}
+
+    def falso_baixar(url, timeout=None):
+        chamadas["navegador"] += 1
+        assert url == fonte["url"]
+        return 200, PAGINA_A
+
+    def handler(request):
+        chamadas["httpx"] += 1
+        return httpx.Response(200, text=PAGINA_A)
+
+    monkeypatch.setattr(coleta.nav, "baixar", falso_baixar)
+    c = httpx.Client(transport=httpx.MockTransport(handler))
+
+    r = coleta.coletar(fonte, con, c)
+    assert r.ok is True
+    assert r.mudou is True
+    assert chamadas["navegador"] == 1
+    assert chamadas["httpx"] == 0
+
+
+def test_fonte_js_true_ainda_roteia_para_navegador(tmp_path, monkeypatch):
+    """"js" e o nome antigo do flag: continua funcionando como sinonimo
+    de "navegador", nao deve mais ser pulado como fonte indisponivel."""
     con = db.conectar(tmp_path / "t.sqlite")
     fonte = {**FONTE, "js": True}
+    chamadas = {"n": 0}
+
+    def falso_baixar(url, timeout=None):
+        chamadas["n"] += 1
+        return 200, PAGINA_A
+
+    monkeypatch.setattr(coleta.nav, "baixar", falso_baixar)
+    r = coleta.coletar(fonte, con, cliente(PAGINA_A))
+    assert r.ok is True
+    assert chamadas["n"] == 1
+
+
+def test_fonte_navegador_erro_navegador_registra_e_nao_levanta(tmp_path, monkeypatch):
+    con = db.conectar(tmp_path / "t.sqlite")
+    fonte = {**FONTE, "navegador": True}
+
+    def falha(url, timeout=None):
+        raise navegador.ErroNavegador("Timeout: navegador nao respondeu")
+
+    monkeypatch.setattr(coleta.nav, "baixar", falha)
+
     r = coleta.coletar(fonte, con, cliente(PAGINA_A))
     assert r.ok is False
-    assert r.erro == "indisponivel: requer navegador (js)"
+    assert "navegador" in r.erro
+
+    linha = con.execute(
+        "SELECT erros_seguidos, erro FROM snapshots WHERE fonte_id=?", (FONTE["id"],)
+    ).fetchone()
+    assert linha["erros_seguidos"] == 1
+    assert "navegador" in linha["erro"]
+
+
+def test_fonte_navegador_sem_playwright_instalado(tmp_path, monkeypatch):
+    con = db.conectar(tmp_path / "t.sqlite")
+    fonte = {**FONTE, "navegador": True}
+
+    monkeypatch.setitem(sys.modules, "playwright", None)
+    monkeypatch.setitem(sys.modules, "playwright.sync_api", None)
+
+    r = coleta.coletar(fonte, con, cliente(PAGINA_A))
+    assert r.ok is False
+    assert r.erro == "indisponivel: playwright nao instalado"
 
 
 def test_robots_bloqueado(tmp_path):

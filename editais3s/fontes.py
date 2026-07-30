@@ -6,6 +6,11 @@ from .config import CFG_FONTES
 
 TIPOS = {"html", "rss", "json", "gnews"}
 OBRIGATORIOS = ("id", "nome", "tipo", "dominio", "tier")
+# Campos opcionais reconhecidos, alem de "url" (tipos html/rss/json) e
+# "query" (gnews): "verificar", "nota", e o flag booleano que manda a
+# coleta passar pelo Chromium headless em vez de httpx — "navegador"
+# (nome atual) ou "js" (sinonimo legado, ver coleta.coletar).
+CAMPOS_OPCIONAIS = ("url", "query", "verificar", "nota", "navegador", "js")
 
 
 class FonteInvalida(ValueError):

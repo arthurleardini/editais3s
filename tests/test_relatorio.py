@@ -196,3 +196,52 @@ def test_aderente_com_prazo_curto_aparece_nos_dois_blocos(tmp_path):
     aderentes = md.split("## Aderentes")[1].split("##")[0]
     assert "TdR urgente e aderente" in apertado
     assert "TdR urgente e aderente" in aderentes
+
+
+def test_prazo_apertado_aparece_mesmo_visto_ha_dias(tmp_path):
+    """Achado 5: item visto ha 10 dias com prazo daqui a 4 dias tem que
+    aparecer no bloco de prazo apertado do relatorio de hoje — o bloco nao
+    pode depender de visto_em/atualizado_em serem de hoje."""
+    con = db.conectar(tmp_path / "t.sqlite")
+    visto = (date.fromisoformat(HOJE) - timedelta(days=10)).isoformat()
+    prazo = (date.fromisoformat(HOJE) + timedelta(days=4)).isoformat()
+    semear(
+        con,
+        id="i11",
+        titulo="TdR visto ha dias com prazo proximo",
+        visto_em=f"{visto}T10:00:00+00:00",
+        prazo=prazo,
+    )
+    bloco = relatorio.gerar(con, HOJE).split("## Prazo apertado")[1].split("##")[0]
+    assert "TdR visto ha dias com prazo proximo" in bloco
+
+
+def test_prazo_apertado_ignora_descartada_kw(tmp_path):
+    con = db.conectar(tmp_path / "t.sqlite")
+    prazo = (date.fromisoformat(HOJE) + timedelta(days=2)).isoformat()
+    semear(
+        con,
+        id="i12",
+        titulo="Vaga com prazo iminente",
+        prazo=prazo,
+        status="descartada_kw",
+        score_llm=None,
+        justificativa_llm=None,
+    )
+    md = relatorio.gerar(con, HOJE)
+    assert "Vaga com prazo iminente" not in md
+
+
+def test_fonte_a_verificar_ganha_marcador_no_relatorio(tmp_path):
+    """Achado 8: fonte com verificar=true no catalogo (URL nao confirmada
+    contra o site) tem que aparecer marcada no relatorio, senao a primeira
+    rodada real apresenta toda fonte como se fosse confirmada."""
+    con = db.conectar(tmp_path / "t.sqlite")
+    semear(con, id="i13", titulo="TdR de fonte nao confirmada", fonte_verificar=1)
+    semear(con, id="i14", titulo="TdR de fonte confirmada", fonte_verificar=0)
+    md = relatorio.gerar(con, HOJE)
+    linha_nao_confirmada = [l for l in md.splitlines() if "TdR de fonte nao confirmada" in l][0]
+    linha_confirmada = [l for l in md.splitlines() if "TdR de fonte confirmada" in l][0]
+    assert "⚠" in linha_nao_confirmada
+    assert "⚠" not in linha_confirmada
+    assert "⚠" in md.split("## Aderentes")[0]  # legenda antes das tabelas

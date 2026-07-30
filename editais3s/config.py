@@ -8,7 +8,10 @@ CFG_CANDIDATAS = RAIZ / "fontes_candidatas.json"
 DIR_DADOS = RAIZ / "data"
 BANCO = DIR_DADOS / "editais3s.sqlite"
 
-UA = "editais3s/0.1 (monitor de editais de terceiro setor; +notabc)"
+UA = (
+    "editais3s/0.1 (monitor de editais de terceiro setor; "
+    "+mailto:arthurlorenzoleardini@gmail.com)"
+)
 TIMEOUT = 20.0
 TENTATIVAS = 2
 CONCORRENCIA = 6

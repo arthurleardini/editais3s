@@ -1,13 +1,13 @@
 """Orquestra a varredura: coleta -> extração -> funil -> persistência -> relatório."""
 import sqlite3
 import time
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
 import httpx
 
 from . import coleta, db, escopo, extrai, fontes as cat, juiz, oportunidades, relatorio
-from .config import INTERVALO_DOMINIO, TIMEOUT, UA
+from .config import INTERVALO_DOMINIO, TIMEOUT, UA, tem_api_key
 
 TRILHA = "catalogo"
 
@@ -32,19 +32,27 @@ def varrer(
     iniciado = _agora()
     resumo = {
         "fontes_ok": 0, "fontes_erro": 0, "novas": 0,
-        "atualizadas": 0, "ignoradas": 0, "sem_llm": not usar_llm,
+        "atualizadas": 0,
+        "sem_mudanca": 0, "bloqueadas": 0, "fora_de_fase": 0,
+        "sem_llm": not usar_llm or not tem_api_key(),
     }
     pendentes: list[dict] = []
 
     for i, fonte in enumerate(lista_fontes):
         if fonte["tipo"] != "html":
-            resumo["ignoradas"] += 1
+            # gnews e outros tipos ainda nao cobertos nesta fase do pipeline —
+            # nao e erro nem bloqueio, e so um tipo de fonte fora da fase atual.
+            resumo["fora_de_fase"] += 1
             continue
         if i:
             pausar(INTERVALO_DOMINIO)
 
         if not coleta.robots_permite(fonte, cliente):
-            resumo["ignoradas"] += 1
+            resumo["bloqueadas"] += 1
+            # Sem isso a fonte some de snapshots e o bloco Saude nunca aponta
+            # o bloqueio: se um financiador publicar Disallow amanha, o
+            # monitor para de olhar pra ele e nenhum relatorio avisa.
+            coleta._gravar_erro(con, fonte["id"], None, "indisponivel: robots.txt")
             continue
 
         r = coleta.coletar(fonte, con, cliente, forcar=forcar)
@@ -53,7 +61,7 @@ def varrer(
             continue
         resumo["fontes_ok"] += 1
         if not r.mudou:
-            resumo["ignoradas"] += 1
+            resumo["sem_mudanca"] += 1
             continue
 
         try:
@@ -77,7 +85,8 @@ def varrer(
 
         for oid in novas + atualizadas:
             linha = con.execute(
-                "SELECT id, titulo, objeto, fonte_nome FROM oportunidades WHERE id=?",
+                "SELECT id, titulo, objeto, fonte_nome, score_llm FROM oportunidades "
+                "WHERE id=?",
                 (oid,),
             ).fetchone()
             aprovado, score_kw, temas = escopo.avaliar(
@@ -89,7 +98,11 @@ def varrer(
             )
             if aprovado:
                 pendentes.append(dict(linha))
-            else:
+            elif linha["score_llm"] is None:
+                # so descarta por keyword quem o juiz nunca viu. Um item ja
+                # julgado nao pode ser rebaixado so porque o objeto (prosa da
+                # LLM de extracao) mudou de um jeito que o funil nao gosta —
+                # o score_llm que o juiz deu prevalece.
                 con.execute(
                     "UPDATE oportunidades SET status='descartada_kw' WHERE id=?", (oid,)
                 )
@@ -97,6 +110,10 @@ def varrer(
 
     if usar_llm and pendentes:
         juiz.aplicar(con, juiz.julgar(pendentes))
+
+    resumo["ignoradas"] = (
+        resumo["sem_mudanca"] + resumo["bloqueadas"] + resumo["fora_de_fase"]
+    )
 
     con.execute(
         """
@@ -113,14 +130,20 @@ def varrer(
 
 
 def diario(
-    ids: list[str] | None = None, forcar: bool = False, usar_llm: bool = True
+    ids: list[str] | None = None,
+    forcar: bool = False,
+    usar_llm: bool = True,
+    data: str | None = None,
 ) -> Path:
     con = db.conectar()
     lista = cat.filtrar(cat.carregar(), ids)
     with _cliente() as cliente:
         resumo = varrer(con, lista, cliente, forcar=forcar, usar_llm=usar_llm)
-    hoje = date.today().isoformat()
-    caminho = relatorio.escrever(con, hoje, execucao=resumo)
+    # visto_em/atualizado_em sao gravados em UTC (oportunidades._agora); usar
+    # date.today() (local) faria o relatorio de uma rodada noturna em
+    # America/Sao_Paulo procurar a data errada e sair vazio.
+    data = data or datetime.now(timezone.utc).date().isoformat()
+    caminho = relatorio.escrever(con, data, execucao=resumo)
     print(
         f"{caminho}: {resumo['novas']} novas, {resumo['fontes_ok']} fontes ok, "
         f"{resumo['fontes_erro']} com erro, {resumo['ignoradas']} ignoradas"

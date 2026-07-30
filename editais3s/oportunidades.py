@@ -27,13 +27,15 @@ def salvar(
                 """
                 INSERT INTO oportunidades (
                   id, fonte_id, fonte_nome, trilha, titulo, objeto, url, url_anexo,
-                  prazo, publicado_em, modalidade, valor_texto, visto_em, status
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?, 'nova')
+                  prazo, publicado_em, modalidade, valor_texto, visto_em,
+                  fonte_verificar, status
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'nova')
                 """,
                 (
                     oid, fonte["id"], fonte.get("nome"), trilha, o.titulo, o.objeto,
                     o.url, o.url_anexo, o.prazo, o.publicado_em, o.modalidade,
                     o.valor_texto, agora,
+                    1 if fonte.get("verificar") else 0,
                 ),
             )
             novas.append(oid)

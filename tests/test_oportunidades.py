@@ -92,3 +92,18 @@ def test_id_tolera_titulo_none():
     vazio = id_oportunidade("wri-brasil", "", None)
     real = id_oportunidade("wri-brasil", "", "Edital A")
     assert vazio and vazio != real
+
+
+def test_salvar_grava_fonte_verificar_a_partir_da_fonte(tmp_path):
+    con = db.conectar(tmp_path / "t.sqlite")
+    fonte_nao_confirmada = {**FONTE, "verificar": True}
+    oportunidades.salvar(con, fonte_nao_confirmada, "catalogo", [op()])
+    linha = con.execute("SELECT fonte_verificar FROM oportunidades").fetchone()
+    assert linha["fonte_verificar"] == 1
+
+
+def test_salvar_fonte_verificar_ausente_vira_zero(tmp_path):
+    con = db.conectar(tmp_path / "t.sqlite")
+    oportunidades.salvar(con, FONTE, "catalogo", [op()])
+    linha = con.execute("SELECT fonte_verificar FROM oportunidades").fetchone()
+    assert linha["fonte_verificar"] == 0

@@ -55,10 +55,10 @@ def test_item_fraco_sem_veto_tambem_reprova():
 
 def test_desenvolvimento_de_site_aprovado():
     aprovado, score, temas = escopo.avaliar(
-        "Termo de referencia para desenvolvimento web do portal institucional bilingue"
+        "Termo de referencia para desenvolvimento de site institucional bilingue"
     )
     assert aprovado is True
-    assert "desenvolvimento web" in temas
+    assert "desenvolvimento de site" in temas
 
 
 def test_termo_nao_pontua_como_substring_de_palavra_maior():
@@ -73,3 +73,34 @@ def test_score_igual_ao_minimo_e_aprovado():
     )
     assert score == SCORE_KW_MINIMO
     assert aprovado is True
+
+
+def test_titulos_reais_do_flagship_agora_pontuam():
+    """Achado 4: titulos reais que hoje sao invisiveis por falta de termo ou
+    por exigirem forma exata singular. Cobre 4 dos 5 titulos medidos no
+    achado — o quinto ("desenvolvimento DO site", com contracao "do" em vez
+    de "de") nao e coberto pelo termo "desenvolvimento de site" tal como
+    especificado; ver nota no relatorio final."""
+    casos = [
+        "Selecao de consultoria para construcao de website bilingue",
+        "Cotacao para reformulacao do portal institucional",
+        "TdR: painel de monitoramento de indicadores socioambientais",
+        "Termo de referencia - implantacao de canal de denuncias",
+    ]
+    for texto in casos:
+        score, temas = escopo.pontuar(texto)
+        assert score >= SCORE_KW_MINIMO, f"{texto!r} pontuou {score}, temas={temas}"
+
+
+def test_termo_de_uma_palavra_casa_no_plural():
+    score, temas = escopo.pontuar("dashboards de gestao para acompanhamento")
+    assert score >= SCORE_KW_MINIMO
+    assert "dashboard" in temas
+
+
+def test_termo_composto_casa_plural_da_ultima_palavra():
+    # "canal de denuncia" (peso 4) — a forma comum em titulo real e o plural
+    # do substantivo final: "canal de denuncias".
+    score, temas = escopo.pontuar("implantacao de canal de denuncias institucional")
+    assert score >= SCORE_KW_MINIMO
+    assert "canal de denuncia" in temas

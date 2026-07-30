@@ -143,11 +143,12 @@ def aplicar(con: sqlite3.Connection, julgados: list[dict]) -> None:
     for j in julgados:
         score = j.get("score_llm")
         if score is None:
-            status = "nova"
-        elif score < SCORE_LLM_OLHAR:
-            status = "descartada_llm"
-        else:
-            status = "reportada"
+            # Falha transitoria do juiz (ou item nunca julgado): nao mexe em
+            # score_llm/justificativa_llm/modelo_llm/status. Um item recem
+            # inserido ja nasce 'nova' (default do INSERT), entao pular aqui
+            # nao perde nada; um item ja julgado antes mantem o score bom.
+            continue
+        status = "descartada_llm" if score < SCORE_LLM_OLHAR else "reportada"
         con.execute(
             """
             UPDATE oportunidades

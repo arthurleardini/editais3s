@@ -27,8 +27,11 @@ def _linha(o: sqlite3.Row) -> str:
     titulo = _celula(o["titulo"])
     url = _celula(o["url"])
     rotulo = f"[{titulo}]({url})" if url else titulo
+    fonte_nome = _celula(o["fonte_nome"])
+    if o["fonte_verificar"]:
+        fonte_nome += " ⚠"
     return (
-        f"| [ ] | {_celula(o['fonte_nome'])} | {rotulo} | {_celula(o['objeto'])[:120]} "
+        f"| [ ] | {fonte_nome} | {rotulo} | {_celula(o['objeto'])[:120]} "
         f"| {_celula(o['prazo'])} | {_celula(o['score_llm'])} "
         f"| {_celula(o['justificativa_llm'])} |"
     )
@@ -65,6 +68,19 @@ def _prazo_apertado(o: sqlite3.Row, data: str) -> bool:
     return hoje <= prazo <= hoje + timedelta(days=PRAZO_APERTADO_DIAS)
 
 
+def _apertadas(con: sqlite3.Connection, data: str) -> list[sqlite3.Row]:
+    """Prazo apertado independe de quando o item foi visto: um item captado
+    ha semanas com prazo se aproximando tem que continuar aparecendo aqui
+    todo dia ate o prazo passar. So exclui descartada_kw (veto de keyword —
+    genuinamente fora do escopo); nova/reportada/descartada_llm continuam,
+    porque este bloco ignora score de proposito."""
+    linhas = con.execute(
+        "SELECT * FROM oportunidades WHERE status != 'descartada_kw' "
+        "AND prazo IS NOT NULL"
+    ).fetchall()
+    return [o for o in linhas if _prazo_apertado(o, data)]
+
+
 def _saude(con: sqlite3.Connection, data: str) -> str:
     linhas = []
     for s in con.execute(
@@ -97,10 +113,17 @@ def _saude(con: sqlite3.Connection, data: str) -> str:
 
 def gerar(con: sqlite3.Connection, data: str, execucao: dict | None = None) -> str:
     itens = _do_dia(con, data)
+    apertadas = _apertadas(con, data)
     novas = [o for o in itens if (o["visto_em"] or "").startswith(data)]
     atualizadas = [o for o in itens if o not in novas]
 
     partes = [f"# Editais de terceiro setor — {data}\n"]
+
+    if any(o["fonte_verificar"] for o in list(itens) + list(apertadas)):
+        partes.append(
+            "> ⚠ = fonte cuja URL ainda não foi confirmada contra o site do "
+            "financiador (catálogo marcado `verificar`).\n"
+        )
 
     if execucao:
         partes.append(
@@ -118,7 +141,6 @@ def gerar(con: sqlite3.Connection, data: str, execucao: dict | None = None) -> s
                 "ausente). Itens sem score aparecem no bloco Nao julgadas.\n"
             )
 
-    apertadas = [o for o in itens if _prazo_apertado(o, data)]
     aderentes = [
         o for o in novas
         if o["score_llm"] is not None and o["score_llm"] >= SCORE_LLM_ADERENTE

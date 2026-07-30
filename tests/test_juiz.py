@@ -123,3 +123,50 @@ def test_aplicar_preserva_prazo_existente_quando_llm_nao_extrai(tmp_path):
     ).fetchone()
     assert linha["prazo"] == "2026-08-01"
     assert linha["modalidade"] == "chamada"
+
+
+def test_aplicar_preserva_score_existente_em_falha_transitoria(tmp_path):
+    """Achado 2: uma falha transitoria do juiz (score_llm=None) nao pode
+    apagar um score que uma rodada anterior ja tinha gravado."""
+    con = db.conectar(tmp_path / "t.sqlite")
+    novas, _ = oportunidades.salvar(
+        con, FONTE, "catalogo", [Oportunidade(titulo="TdR Ouvidoria", url="https://a.org/falha")]
+    )
+    juiz.aplicar(
+        con,
+        [
+            {
+                "id": novas[0],
+                "score_llm": 9,
+                "justificativa_llm": "casa com o caso WRI",
+                "modelo_llm": "claude-haiku-4-5",
+                "prazo": "2026-07-13",
+                "modalidade": "tdr",
+            }
+        ],
+    )
+    linha = con.execute("SELECT * FROM oportunidades WHERE id=?", (novas[0],)).fetchone()
+    assert (linha["score_llm"], linha["justificativa_llm"], linha["modelo_llm"], linha["status"]) == (
+        9, "casa com o caso WRI", "claude-haiku-4-5", "reportada",
+    )
+
+    # rodada seguinte: o juiz falhou de forma transitoria (_vazio) para o
+    # mesmo item, ja com score gravado.
+    juiz.aplicar(
+        con,
+        [
+            {
+                "id": novas[0],
+                "score_llm": None,
+                "justificativa_llm": None,
+                "modelo_llm": None,
+                "prazo": None,
+                "modalidade": None,
+            }
+        ],
+    )
+    linha = con.execute("SELECT * FROM oportunidades WHERE id=?", (novas[0],)).fetchone()
+    assert linha["score_llm"] == 9
+    assert linha["justificativa_llm"] == "casa com o caso WRI"
+    assert linha["modelo_llm"] == "claude-haiku-4-5"
+    assert linha["status"] == "reportada"

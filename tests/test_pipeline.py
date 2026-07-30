@@ -1,7 +1,10 @@
+from datetime import datetime, timezone
+
 import httpx
 
-from editais3s import db, pipeline
+from editais3s import db, pipeline, relatorio
 from editais3s.config import INTERVALO_DOMINIO
+from editais3s.modelos import Oportunidade
 
 FONTE = {
     "id": "wri-brasil",
@@ -182,3 +185,160 @@ def test_varrer_respeita_robots_txt_disallow(tmp_path):
     assert resumo["ignoradas"] == 1
     assert resumo["fontes_ok"] == 0
     assert con.execute("SELECT count(*) FROM oportunidades").fetchone()[0] == 0
+
+
+def test_varrer_nao_demove_item_ja_julgado_pelo_juiz(tmp_path, monkeypatch):
+    """Achado 1: entre duas rodadas o 'objeto' extraido (prosa da LLM) muda e
+    o novo score_kw cai abaixo do minimo. O item ja tinha sido julgado com
+    score_llm alto na primeira rodada — o loop de escopo da segunda rodada
+    nao pode rebaixa-lo a descartada_kw e faze-lo sumir do relatorio."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    con = db.conectar(tmp_path / "t.sqlite")
+
+    # paginas com hash diferente para passar do gate de "mudou" em coleta,
+    # mas o conteudo extraido de fato vem do extrai.extrair mockado abaixo.
+    paginas = iter(["<body>pagina 1</body>", "<body>pagina 2 diferente</body>"])
+
+    def cliente_falso():
+        def handler(request):
+            if request.url.path == "/robots.txt":
+                return httpx.Response(404, text="")
+            return httpx.Response(200, text=next(paginas))
+
+        return httpx.Client(transport=httpx.MockTransport(handler))
+
+    objetos = iter(
+        [
+            "plataforma de dados e painel de indicadores para ouvidoria institucional",
+            "texto generico sem nenhum termo de escopo relevante para o portfolio",
+        ]
+    )
+
+    def extrair_falso(texto, fonte, chamar=None):
+        return [
+            Oportunidade(
+                titulo="Consultoria eventual",
+                objeto=next(objetos),
+                url="https://www.wribrasil.org.br/media/tdr.pdf",
+                prazo="2026-09-30",
+            )
+        ]
+
+    monkeypatch.setattr(pipeline.extrai, "extrair", extrair_falso)
+
+    def julgar_alto(itens):
+        return [
+            {
+                "id": i["id"],
+                "score_llm": 9,
+                "justificativa_llm": "aderente",
+                "prazo": None,
+                "modalidade": None,
+                "modelo_llm": "m",
+            }
+            for i in itens
+        ]
+
+    monkeypatch.setattr(pipeline.juiz, "julgar", julgar_alto)
+
+    pipeline.varrer(con, [FONTE], cliente_falso(), usar_llm=True, pausar=lambda _: None)
+    linha = con.execute("SELECT status, score_llm FROM oportunidades").fetchone()
+    assert linha["status"] == "reportada"
+    assert linha["score_llm"] == 9
+
+    pipeline.varrer(con, [FONTE], cliente_falso(), usar_llm=True, pausar=lambda _: None)
+    linha = con.execute("SELECT status, score_llm, score_kw FROM oportunidades").fetchone()
+    assert linha["status"] == "reportada", (
+        f"item ja julgado (score_llm=9) foi rebaixado para {linha['status']!r} "
+        "so porque o novo objeto nao bateu o funil de keyword"
+    )
+    assert linha["score_llm"] == 9
+
+    hoje = datetime.now(timezone.utc).date().isoformat()
+    md = relatorio.gerar(con, hoje)
+    assert "Aderentes" in md
+    assert "Consultoria eventual" in md
+
+
+def test_varrer_sinaliza_sem_llm_quando_falta_api_key(tmp_path, monkeypatch):
+    """Achado 3: usar_llm=True (cron normal) mas sem ANTHROPIC_API_KEY deve
+    acender o mesmo aviso 'sem_llm' que --sem-llm, senao uma chave revogada
+    fica indistinguivel de um dia tranquilo no relatorio."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    con = db.conectar(tmp_path / "t.sqlite")
+    resumo = pipeline.varrer(
+        con, [FONTE], cliente_falso(), usar_llm=True, pausar=lambda _: None
+    )
+    assert resumo["sem_llm"] is True
+
+
+def test_robots_bloqueado_grava_snapshot_e_conta_bloqueadas(tmp_path):
+    """Achado 6: uma fonte bloqueada por robots.txt precisa deixar rastro em
+    snapshots (como o caminho js:true ja faz) para nao desaparecer do bloco
+    Saude para sempre, e o contador tem que ser especifico ('bloqueadas'),
+    nao misturado em 'ignoradas'."""
+    con = db.conectar(tmp_path / "t.sqlite")
+
+    def handler(request):
+        if request.url.path == "/robots.txt":
+            return httpx.Response(200, text="User-agent: *\nDisallow: /\n")
+        return httpx.Response(200, text=PAGINA)
+
+    c = httpx.Client(transport=httpx.MockTransport(handler))
+    resumo = pipeline.varrer(con, [FONTE], c, usar_llm=False, pausar=lambda _: None)
+
+    assert resumo["bloqueadas"] == 1
+    assert resumo["ignoradas"] == 1
+    linha = con.execute(
+        "SELECT erro FROM snapshots WHERE fonte_id=?", (FONTE["id"],)
+    ).fetchone()
+    assert linha is not None
+    assert linha["erro"] == "indisponivel: robots.txt"
+
+
+def test_pagina_sem_mudanca_incrementa_sem_mudanca(tmp_path, monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    con = db.conectar(tmp_path / "t.sqlite")
+    pipeline.varrer(con, [FONTE], cliente_falso(), usar_llm=False, pausar=lambda _: None)
+    resumo = pipeline.varrer(
+        con, [FONTE], cliente_falso(), usar_llm=False, pausar=lambda _: None
+    )
+    assert resumo["sem_mudanca"] == 1
+    assert resumo["ignoradas"] == 1
+
+
+def test_fonte_gnews_incrementa_fora_de_fase(tmp_path):
+    con = db.conectar(tmp_path / "t.sqlite")
+    fonte = {
+        "id": "talanoa", "nome": "Talanoa", "tipo": "gnews",
+        "dominio": "institutotalanoa.org", "query": "x", "tier": 1,
+    }
+    resumo = pipeline.varrer(
+        con, [fonte], cliente_falso(), usar_llm=False, pausar=lambda _: None
+    )
+    assert resumo["fora_de_fase"] == 1
+    assert resumo["ignoradas"] == 1
+
+
+def test_diario_aceita_data_explicita_e_usa_no_caminho_do_relatorio(
+    tmp_path, monkeypatch
+):
+    """Achado 7: visto_em e gravado em UTC (oportunidades._agora), entao
+    diario() nao pode derivar a data do relatorio de date.today() (local) —
+    precisa aceitar uma data explicita para ser testavel e usar UTC por
+    padrao, senao toda rodada depois de 21h em America/Sao_Paulo escreve o
+    item com data de amanha e o relatorio de hoje sai vazio."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    conectar_original = db.conectar
+    monkeypatch.setattr(
+        pipeline.db, "conectar", lambda: conectar_original(tmp_path / "t.sqlite")
+    )
+    monkeypatch.setattr(pipeline.cat, "carregar", lambda: [FONTE])
+    monkeypatch.setattr(pipeline.cat, "filtrar", lambda fontes, ids: fontes)
+    monkeypatch.setattr(pipeline, "_cliente", cliente_falso)
+    monkeypatch.setattr(relatorio, "DIR_DADOS", tmp_path)
+
+    data_explicita = "2026-08-15"
+    caminho = pipeline.diario(usar_llm=False, data=data_explicita)
+    assert caminho.name == f"novas_{data_explicita}.md"
+    assert caminho.exists()

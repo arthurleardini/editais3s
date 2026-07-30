@@ -1,6 +1,6 @@
 """Entrypoint de linha de comando."""
 import argparse
-from datetime import date
+from datetime import datetime, timezone
 
 from . import db, pipeline, relatorio
 
@@ -15,7 +15,11 @@ def construir_parser() -> argparse.ArgumentParser:
     d.add_argument("--sem-llm", dest="sem_llm", action="store_true", help="so o funil de keyword")
 
     r = sub.add_parser("relatorio", help="regera o relatorio de uma data")
-    r.add_argument("--data", default=date.today().isoformat())
+    # visto_em e gravado em UTC — o default tem que casar com isso, senao
+    # uma rodada noturna em America/Sao_Paulo procura a data errada.
+    r.add_argument(
+        "--data", default=datetime.now(timezone.utc).date().isoformat()
+    )
 
     b = sub.add_parser("bootstrap", help="confere a url de cada fonte do catalogo")
     b.add_argument("--fontes", help="ids separados por virgula")

@@ -36,7 +36,8 @@ CREATE TABLE IF NOT EXISTS oportunidades (
   score_llm INTEGER,
   justificativa_llm TEXT,
   modelo_llm TEXT,
-  status TEXT NOT NULL DEFAULT 'nova'
+  status TEXT NOT NULL DEFAULT 'nova',
+  fonte_verificar INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS ix_oport_visto ON oportunidades (visto_em);

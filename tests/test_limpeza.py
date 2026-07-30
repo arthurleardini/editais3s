@@ -52,3 +52,9 @@ def test_ancora_multilinha_fica_em_uma_linha():
     assert "[TdR Ouvidoria Restaura Biomas](/media/tdr.pdf)" in texto
     linhas = [l for l in texto.splitlines() if "tdr.pdf" in l]
     assert len(linhas) == 1
+    # achado 11: len(linhas) == 1 sozinho nao e load-bearing — se a quebra de
+    # linha no meio do titulo nao for colapsada, "TdR Ouvidoria" fica isolado
+    # numa linha anterior que nao contem "tdr.pdf", e essa mesma asserção
+    # passaria do mesmo jeito. Confirma que o titulo inteiro esta na mesma
+    # linha do link.
+    assert "TdR Ouvidoria" in linhas[0]

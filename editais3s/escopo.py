@@ -17,6 +17,8 @@ TEMAS: dict[str, int] = {
     "arquitetura de dados": 5,
     "desenvolvimento web": 5,
     "visualizacao de dados": 5,
+    "desenvolvimento de site": 5,
+    "criacao de site": 5,
     # peso 4
     "dashboard": 4,
     "painel de dados": 4,
@@ -36,6 +38,10 @@ TEMAS: dict[str, int] = {
     "portal web": 4,
     "aplicacao web": 4,
     "site institucional": 4,
+    "reformulacao de site": 4,
+    "website": 4,
+    "portal institucional": 4,
+    "painel de monitoramento": 4,
     # peso 3
     "banco de dados": 3,
     "cms": 3,
@@ -50,6 +56,8 @@ TEMAS: dict[str, int] = {
     "automacao": 3,
     "formulario de coleta": 3,
     "transparencia ativa": 3,
+    "portal": 3,
+    "painel": 3,
 }
 
 VETOS: tuple[str, ...] = (
@@ -83,8 +91,13 @@ def normalizar(texto: str) -> str:
 
 
 def _com_fronteira(alvo: str, termo: str) -> bool:
-    """O autômato casa substring ('api' dentro de 'rapido'). Confirma fronteira."""
-    return re.search(rf"(?<!\w){re.escape(termo)}(?!\w)", alvo) is not None
+    """O autômato casa substring ('api' dentro de 'rapido'). Confirma fronteira.
+
+    Aceita um 's' opcional de plural no final ('canal de denuncias' casa com
+    o termo singular 'canal de denuncia') — a forma no plural é o uso comum
+    em português para boa parte destes termos.
+    """
+    return re.search(rf"(?<!\w){re.escape(termo)}s?(?!\w)", alvo) is not None
 
 
 def pontuar(texto: str) -> tuple[int, list[str]]:

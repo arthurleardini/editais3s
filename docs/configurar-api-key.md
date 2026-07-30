@@ -10,26 +10,46 @@ console.anthropic.com → **API keys**.
 
 ## Gravar a chave
 
-**Não cole a chave em chat, em prompt de agente, nem em arquivo versionado.** O comando abaixo
-lê a chave sem ecoar na tela e grava com permissão restrita ao seu usuário:
+**Não cole a chave em chat, em prompt de agente, nem em arquivo versionado.**
+
+Exportar a variável na sua sessão de terminal **não basta**: ela morre quando o terminal fecha, e
+não alcança processo nenhum disparado por um agente ou pelo cron. A chave tem que estar num
+arquivo. O comando abaixo lê sem ecoar na tela e grava com permissão restrita ao seu usuário.
+
+Dentro do Claude Code, cole com o prefixo `!`, que executa na sua própria sessão:
+
+```
+! umask 077; mkdir -p ~/.config; read -rsp "cole a key: " K && printf 'ANTHROPIC_API_KEY=%s\n' "$K" > ~/.config/editais3s.env && unset K && chmod 600 ~/.config/editais3s.env && echo ok
+```
+
+Num terminal comum é o mesmo, quebrado em linhas:
 
 ```bash
 umask 077
 mkdir -p ~/.config
 read -rsp "cole a key: " K \
-  && printf 'export ANTHROPIC_API_KEY=%s\n' "$K" > ~/.config/editais3s.env \
+  && printf 'ANTHROPIC_API_KEY=%s\n' "$K" > ~/.config/editais3s.env \
   && unset K \
   && chmod 600 ~/.config/editais3s.env \
-  && echo "gravado em ~/.config/editais3s.env"
+  && echo ok
 ```
 
-`umask 077` garante que o arquivo nasça sem permissão para grupo e outros; o `chmod 600` é
-redundante de propósito.
+Três detalhes que não são acidentais:
+
+- **`umask 077`** faz o arquivo nascer sem permissão para grupo e outros. O `chmod 600` depois é
+  redundante de propósito, para o caso de o arquivo já existir com permissão frouxa.
+- **`read -rsp`** não ecoa o que você digita, então a chave não fica no scrollback do terminal.
+  O `-r` evita que barra invertida seja interpretada.
+- **`ANTHROPIC_API_KEY=...` sem `export`.** É o formato que o `EnvironmentFile` do systemd exige,
+  e o shell também consegue usar (ver abaixo). Um arquivo só serve os dois casos.
 
 ## Usar
 
+O arquivo não tem `export`, então carregue com `set -a`, que exporta automaticamente tudo que for
+atribuído entre o `-a` e o `+a`:
+
 ```bash
-. ~/.config/editais3s.env
+set -a; . ~/.config/editais3s.env; set +a
 cd /config/workspace/editais3s
 .venv/bin/python -m editais3s diario
 ```
@@ -37,8 +57,12 @@ cd /config/workspace/editais3s
 Para valer em toda sessão interativa, acrescente ao `~/.bashrc`:
 
 ```bash
-[ -f ~/.config/editais3s.env ] && . ~/.config/editais3s.env
+[ -f ~/.config/editais3s.env ] && { set -a; . ~/.config/editais3s.env; set +a; }
 ```
+
+Atenção: shell **não-interativo** não lê `~/.bashrc`. Se um agente ou script disparar o job e
+reclamar que falta a chave, é isso — carregue o arquivo explicitamente no comando, como no bloco
+acima, em vez de confiar no `.bashrc`.
 
 ## Verificar sem imprimir a chave
 
@@ -53,9 +77,16 @@ confirme que a linha de aviso **não** aparece no cabeçalho do `.md`:
 > Aviso: rodada sem juiz LLM (--sem-llm ou ANTHROPIC_API_KEY ausente).
 ```
 
+Se quiser inspecionar o arquivo sem revelar o valor:
+
+```bash
+stat -c '%a %n' ~/.config/editais3s.env   # deve ser 600
+cut -d= -f1 ~/.config/editais3s.env        # imprime so o nome da variavel
+```
+
 ## Cron e systemd (Fase 5)
 
-O cron não lê `~/.bashrc`. A chave precisa entrar no ambiente da unit:
+O cron não lê `~/.bashrc`. A chave entra pelo ambiente da unit:
 
 ```ini
 [Service]
@@ -64,12 +95,8 @@ ExecStart=/config/workspace/editais3s/.venv/bin/python -m editais3s diario
 WorkingDirectory=/config/workspace/editais3s
 ```
 
-O `EnvironmentFile` do systemd espera `CHAVE=valor` sem `export`. Se for usar o mesmo arquivo
-para shell e systemd, grave sem o `export` e use `set -a` no shell:
-
-```bash
-set -a; . ~/.config/editais3s.env; set +a
-```
+É por isso que o arquivo foi gravado sem `export`: o `EnvironmentFile` espera `CHAVE=valor` puro
+e falha se encontrar `export`.
 
 ## Duas ressalvas do nosso código
 
@@ -117,6 +144,20 @@ MODELO_JUIZ = "claude-sonnet-5"   # ou "claude-opus-5"
 
 O campo `modelo_llm` da tabela `oportunidades` guarda qual modelo pontuou cada item, então trocar
 o modelo não confunde safras antigas de score.
+
+## Primeira rodada depois de configurar
+
+O gate de hash guarda o hash da última coleta de cada fonte. Se as páginas já foram coletadas numa
+rodada anterior sem chave, um `diario` normal vê hash igual, pula a extração e faz **zero** chamada
+de LLM — o relatório sai vazio e parece que a chave não funcionou. Para forçar o caminho completo
+na primeira rodada com chave:
+
+```bash
+set -a; . ~/.config/editais3s.env; set +a
+.venv/bin/python -m editais3s diario --forcar
+```
+
+Isso gasta crédito de API e faz requisição a todos os financiadores do catálogo.
 
 ## Higiene
 

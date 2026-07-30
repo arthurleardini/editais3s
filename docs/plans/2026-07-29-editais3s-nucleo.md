@@ -2598,7 +2598,7 @@ if __name__ == "__main__":
 - [ ] **Step 8: Rodar a suíte inteira**
 
 Run: `python -m pytest -v`
-Expected: 80 passed (3 db + 5 limpeza + 9 fontes + 10 coleta + 8 oportunidades + 9 extrai + 8 escopo + 7 juiz + 11 relatório + 5 pipeline + 5 cli)
+Expected: 104 passed. A contagem final ficou acima da estimativa porque cada task ganhou testes de regressao durante o review (ver apendice de desvios).
 
 - [ ] **Step 9: Escrever o `README.md`**
 
@@ -2663,3 +2663,63 @@ git commit -m "feat: pipeline diario, CLI e bootstrap do catalogo"
 ## Depois deste plano
 
 Fase 3 (tier 2 no catálogo, trilha `gnews`, agregadores Devex e ReliefWeb), Fase 4 (`descoberta.py` mensal e trilha newsletter via Gmail) e Fase 5 (cron, unit systemd, `custos`, `saude`, `rotular_import`) ganham planos próprios. O primeiro `diario` real depende do `bootstrap`: as URLs do tier 1 entraram com `verificar: true` porque foram montadas a partir do padrão de cada domínio e ainda não foram confirmadas contra o site.
+
+---
+
+## Apêndice: desvios entre o plano e o código entregue
+
+O plano foi escrito antes da execução e cada task passou por review com teste de mutação
+(quebrar a implementação de propósito e exigir que o teste falhe). Esse processo achou oito
+problemas, e o padrão vale registrar: todos eram furos deste plano, não erros de
+transcrição dos implementadores. O código é a fonte da verdade agora; esta lista existe para
+que ninguém reintroduza um bug reexecutando um bloco antigo.
+
+### Correções de código
+
+| Commit | Task | O que mudou e por quê |
+|---|---|---|
+| `c2008bc` | 2 | `troca()` passou a usar `RE_ESPACO_TUDO` (`\s+`). Com `[ \t]+`, uma âncora cujo texto atravessa linhas deixava o `\n` dentro do token `[titulo](url)`, e o `splitlines()` seguinte separava título de URL — a falha que o inline antes do parser existe para evitar. |
+| `4431a55` | 5 | `canonizar` passou a fazer `.strip()` na entrada e a devolver `""` quando o resultado parseado não tem netloc, nem query, nem caminho além de `/`. Antes, URL lixo (`"   "`, `"#"`, `"?"`, `"/"`) colapsava em `"/"`, que é truthy, então `id_oportunidade` não caía no fallback do título e duas oportunidades distintas da mesma fonte colidiam no mesmo id: perda silenciosa de edital. `id_oportunidade` também ganhou guarda para `titulo=None`. Plano já sincronizado em `e33383c`. |
+| `fd09c92` | 10 | `varrer` passou a envolver `extrai.extrair` e `oportunidades.salvar` em try/except por fonte, contando `fontes_erro` e gravando o erro em `snapshots`. Antes, só a falha de coleta era isolada: exceção na extração ou na persistência de uma fonte abortava a varredura e pulava o `juiz.julgar` e o INSERT em `execucoes`, que vêm depois do loop. Uma fonte ruim derrubava o relatório das outras treze. |
+| `fd09c92` | 9, 10 | `varrer` inclui `"sem_llm": not usar_llm` no resumo e `relatorio.gerar` emite linha de aviso quando esse campo está setado. A spec §8 e o README já prometiam aviso no cabeçalho quando falta `ANTHROPIC_API_KEY`; nada no código emitia. Sem isso, quem perdesse a chave receberia um relatório idêntico a um dia calmo. |
+
+### Testes de regressão acrescentados
+
+Task 4 (`0a30337`): retry do `_baixar` com handler stateful, e incremento do `ON CONFLICT` de
+`erros_seguidos` em falhas consecutivas. Task 5 (`4431a55`): URL lixo, caminho relativo
+preservado, ausência de colisão de id, título `None`. Task 6 (`2ec54f6`): exceção no `chamar`
+caindo na heurística. Task 7 (`836cbea`): termo não pontuando como substring de palavra maior,
+e limiar exatamente igual a `SCORE_KW_MINIMO`. Task 8 (`c766d0f`): score negativo normalizado,
+`COALESCE` preservando prazo já conhecido. Task 9 (`e0c64d1`): filtro de status com
+`score_llm=None`, `DIR_DADOS` de fato usado, limiar exato de prazo, prazo malformado não
+derrubando o relatório, ramo de fonte silenciosa do `_saude`, e item aderente com prazo curto
+aparecendo nos dois blocos de propósito. Task 10 (`fd09c92`): isolamento de falha de extração,
+`usar_llm=False` não chamando o juiz, pausa entre fontes mas não antes da primeira, contadores
+reais em `execucoes`, e `robots.txt` com `Disallow` sendo respeitado.
+
+### Fixture corrigida
+
+O teste do funil na Task 10 esperava que "Vaga de emprego: analista administrativo" chegasse ao
+banco marcada `descartada_kw`. Impossível: `extrai.heuristica` filtra por `RE_EDITAL` antes de
+construir qualquer `Oportunidade`, e vaga de emprego não casa com nenhum termo de edital, então
+o item morre na extração e nunca vê `escopo.avaliar`. As duas camadas filtram vaga de emprego,
+e isso é intencional; errado era o exemplo escolhido. A fixture passou a usar "Chamada de
+projetos para apoio a iniciativas comunitarias", que casa `RE_EDITAL` e leva veto do escopo sem
+tema forte, exercitando a segunda camada de verdade. A vaga ficou no fixture como asserção de
+que morre na primeira.
+
+### Fora de escopo desta fase
+
+Playwright continua fora, então fonte `js: true` é registrada como indisponível. O Step 10
+(rodar `scripts/check_sensivel.py` sobre um relatório gerado) não foi executado: exige uma
+varredura real contra catorze sites de terceiros e gasto de crédito de API, que não foram
+autorizados. Fica como primeiro passo pós-merge, junto do `bootstrap` que confirma as URLs do
+tier 1.
+
+### Desvio de processo
+
+O commit `ff5da08` (fixture de âncora multilinha na Task 2) foi feito pelo controller, não por
+um implementador, e não passou por task review. O subagente do fix round 2 foi interrompido no
+meio da demonstração red/green, deixando a prova pela metade na working tree; o controller
+completou a demonstração e commitou só a fixture. O review final da branch deve cobrir
+`tests/test_limpeza.py`.

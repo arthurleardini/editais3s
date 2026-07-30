@@ -232,6 +232,7 @@ Cada linha traz um marcador `[ ]` para você rotular no próprio arquivo; `rotul
 O job diário nunca aborta por causa de uma fonte.
 
 - Fonte com erro: registra, incrementa `erros_seguidos`, segue. Três execuções seguidas com erro viram linha no bloco Saúde.
+- Falha na extração ou na persistência de uma fonte também é isolada: conta como erro, grava em `snapshots` e segue para a próxima. Sem isso, uma página patológica aborta a varredura antes do juiz e do registro da execução.
 - Sem `ANTHROPIC_API_KEY`: extração cai para heurística de regex sobre âncora (`edital|termo de referência|chamada|cotação|RFP|TdR|consultoria`), juiz desliga, relatório sai com aviso no cabeçalho. Mesmo padrão de fallback gracioso do `googlerss/rotular.py`.
 - MCP Gmail ausente: trilha newsletter marcada indisponível.
 - Playwright ausente: fonte `js: true` marcada indisponível, o resto roda.

@@ -4,13 +4,34 @@ Sem chave: extração cai na heurística, juiz desliga, relatório sai sem score
 
 ## Gravar
 
-Chave em console.anthropic.com → API keys. Não colar em chat nem em arquivo versionado.
+Chave em console.anthropic.com → API keys.
 
-No Claude Code (prefixo `!` executa na sua sessão):
+**Nunca ponha a chave numa linha de comando.** Ela fica no histórico do shell, e num comando de
+agente fica no transcript. Crie o arquivo vazio e cole a chave dentro de um editor:
 
+```bash
+umask 077
+mkdir -p ~/.config
+printf 'ANTHROPIC_API_KEY=\n' > ~/.config/editais3s.env
+chmod 600 ~/.config/editais3s.env
+nano ~/.config/editais3s.env
 ```
-! umask 077; mkdir -p ~/.config; read -rsp "cole a key: " K && printf 'ANTHROPIC_API_KEY=%s\n' "$K" > ~/.config/editais3s.env && unset K && chmod 600 ~/.config/editais3s.env && echo ok
+
+No editor, cole a chave imediatamente depois do `=`, sem espaço e sem aspas. Salvar: `Ctrl+O`,
+`Enter`, `Ctrl+X`.
+
+Se preferir digitar num terminal de verdade, `read` também serve — mas só em terminal
+interativo, porque num comando disparado por agente não há TTY e o `read` recebe EOF na hora:
+
+```bash
+umask 077; mkdir -p ~/.config
+printf 'cole a key e aperte Enter: '; read -rs K
+printf 'ANTHROPIC_API_KEY=%s\n' "$K" > ~/.config/editais3s.env
+unset K; chmod 600 ~/.config/editais3s.env
 ```
+
+O prompt vai num `printf` separado justamente para não parecer campo de preenchimento na mesma
+linha do comando.
 
 ## Usar
 

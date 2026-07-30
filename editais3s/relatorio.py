@@ -3,11 +3,11 @@ import sqlite3
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from . import escopo
 from .config import (
     DIAS_SEM_ITEM_ALERTA,
     DIR_DADOS,
     PRAZO_APERTADO_DIAS,
+    SCORE_KW_MINIMO,
     SCORE_LLM_ADERENTE,
     SCORE_LLM_OLHAR,
 )
@@ -25,12 +25,13 @@ def _celula(valor) -> str:
 
 
 def _match_forte(o: sqlite3.Row) -> bool:
-    """True se algum termo em temas_kw tem peso 5 no dicionario de escopo —
-    o hit "completo" que o dono quer ver destacado no relatorio, nao apenas
-    ranqueado. temas_kw e' salvo como string separada por virgula."""
-    temas_kw = o["temas_kw"] or ""
-    termos = [t.strip() for t in temas_kw.split(",") if t.strip()]
-    return any(escopo.TEMAS.get(t, 0) >= 5 for t in termos)
+    """True quando score_kw bate o mesmo limiar que escopo.triar usa para
+    chamar um item de 'forte' — um conceito so' de match forte no sistema
+    inteiro (score agregado), em vez de dois (esse e mais 'algum tema de
+    peso 5'), que deixava sem marcador um item aderente cujo peso vem de
+    varios temas menores somados."""
+    score_kw = o["score_kw"]
+    return score_kw is not None and score_kw >= SCORE_KW_MINIMO
 
 
 def _linha(o: sqlite3.Row) -> str:
@@ -140,7 +141,11 @@ def gerar(con: sqlite3.Connection, data: str, execucao: dict | None = None) -> s
         )
 
     if any(_match_forte(o) for o in list(itens) + list(apertadas)):
-        partes.append("> ★ = match forte no funil de palavra-chave.\n")
+        partes.append(
+            f"> ★ = match forte no funil de palavra-chave "
+            f"(score_kw ≥ {SCORE_KW_MINIMO}, o mesmo limiar que classifica "
+            "'forte' em escopo.triar).\n"
+        )
 
     if execucao:
         # execucao['novas'] e' o contador real da varredura. len(novas) so
@@ -165,6 +170,14 @@ def gerar(con: sqlite3.Connection, data: str, execucao: dict | None = None) -> s
                 "ausente). Itens sem score aparecem no bloco Nao julgadas.\n"
             )
 
+    # Blocos de classificacao (Aderentes/Olhar/Triagem/Nao julgadas) sao
+    # mutuamente exclusivos por construcao: cada um deles particiona o mesmo
+    # universo (novas) por uma faixa de score_llm que nao se sobrepoe com
+    # nenhuma outra (None e' um caso a parte de qualquer faixa numerica).
+    # 'Triagem' aqui e' "julgado e ficou abaixo do corte" (score_llm nao
+    # nulo); 'Nao julgadas' e' "sem nota" (score_llm nulo) — antes as duas
+    # usavam populacoes diferentes (novas vs. itens) e um item sem nota podia
+    # cair nas duas ao mesmo tempo.
     aderentes = [
         o for o in novas
         if o["score_llm"] is not None and o["score_llm"] >= SCORE_LLM_ADERENTE
@@ -174,11 +187,11 @@ def gerar(con: sqlite3.Connection, data: str, execucao: dict | None = None) -> s
         if o["score_llm"] is not None
         and SCORE_LLM_OLHAR <= o["score_llm"] < SCORE_LLM_ADERENTE
     ]
-    nao_julgadas = [o for o in novas if o["score_llm"] is None]
     triagem = [
-        o for o in itens
-        if o["score_llm"] is None or o["score_llm"] < SCORE_LLM_OLHAR
+        o for o in novas
+        if o["score_llm"] is not None and o["score_llm"] < SCORE_LLM_OLHAR
     ]
+    nao_julgadas = [o for o in novas if o["score_llm"] is None]
 
     for titulo, grupo in (
         (f"Prazo apertado (≤ {PRAZO_APERTADO_DIAS} dias)", apertadas),

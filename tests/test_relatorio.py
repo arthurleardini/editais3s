@@ -266,18 +266,23 @@ def test_triagem_score_baixo_aparece_e_nao_e_escondida(tmp_path):
     assert "TdR fraco julgado" in bloco
 
 
-def test_marcador_forte_aparece_para_tema_peso_5(tmp_path):
+def test_marcador_forte_aparece_quando_score_kw_bate_o_minimo(tmp_path):
+    # Contrato novo: o marcador segue score_kw >= SCORE_KW_MINIMO (o mesmo
+    # limiar que escopo.triar usa para chamar de 'forte'), nao mais "algum
+    # tema isolado de peso 5". Um item cujo peso vem de varios temas menores
+    # somados (ex: "plataforma" 4 + outro termo) tambem tem que marcar.
     con = db.conectar(tmp_path / "t.sqlite")
-    semear(con, id="i16", titulo="TdR com tema forte", temas_kw="plataforma de dados")
+    semear(con, id="i16", titulo="TdR com tema forte", score_kw=9, temas_kw="plataforma de dados")
     md = relatorio.gerar(con, HOJE)
     linha = [l for l in md.splitlines() if "TdR com tema forte" in l][0]
     assert "★" in linha
     assert "★ = match forte" in md
 
 
-def test_marcador_forte_ausente_para_tema_peso_3(tmp_path):
+def test_marcador_forte_ausente_quando_score_kw_abaixo_do_minimo(tmp_path):
+    # Peso 3 sozinho (score_kw=3) continua sem marcar: 3 < SCORE_KW_MINIMO (4).
     con = db.conectar(tmp_path / "t.sqlite")
-    semear(con, id="i17", titulo="TdR so com tema fraco", temas_kw="api")
+    semear(con, id="i17", titulo="TdR so com tema fraco", score_kw=3, temas_kw="api")
     md = relatorio.gerar(con, HOJE)
     linha = [l for l in md.splitlines() if "TdR so com tema fraco" in l][0]
     assert "★" not in linha
@@ -285,7 +290,7 @@ def test_marcador_forte_ausente_para_tema_peso_3(tmp_path):
 
 def test_legenda_forte_so_aparece_quando_ha_marcador(tmp_path):
     con = db.conectar(tmp_path / "t.sqlite")
-    semear(con, id="i18", titulo="TdR sem tema forte", temas_kw="api")
+    semear(con, id="i18", titulo="TdR sem tema forte", score_kw=3, temas_kw="api")
     md = relatorio.gerar(con, HOJE)
     assert "★ = match forte" not in md
 
@@ -302,3 +307,43 @@ def test_cabecalho_novas_bate_com_execucao(tmp_path):
         con, HOJE, execucao={"fontes_ok": 3, "fontes_erro": 0, "novas": 5}
     )
     assert "novas: 5" in md
+
+
+def _sem_bloco_prazo_apertado(md: str) -> str:
+    """Remove o bloco 'Prazo apertado' do texto — sua redundancia com os
+    blocos de classificacao e' deliberada (test_aderente_com_prazo_curto_
+    aparece_nos_dois_blocos fixa isso) e nao entra na contagem de
+    exclusividade abaixo."""
+    if "## Prazo apertado" not in md:
+        return md
+    antes, resto = md.split("## Prazo apertado", 1)
+    partes = resto.split("\n## ", 1)
+    depois = "\n## " + partes[1] if len(partes) > 1 else ""
+    return antes + depois
+
+
+def test_blocos_de_classificacao_sao_mutuamente_exclusivos(tmp_path):
+    """Achado do coordenador: com Nao julgadas (populacao 'novas') e Triagem
+    (populacao 'itens', que inclui 'novas') usando bases diferentes, um item
+    sem nota caia nos dois — 6 editais viravam 15 linhas. Um item de cada
+    faixa (Aderentes/Olhar/Triagem/Nao julgadas) tem que aparecer exatamente
+    uma vez no relatorio, fora do bloco Prazo apertado (essa redundancia e'
+    deliberada e tem teste proprio)."""
+    con = db.conectar(tmp_path / "t.sqlite")
+    semear(con, id="e1", titulo="Item aderente unico", score_llm=9)
+    semear(con, id="e2", titulo="Item olhar unico", score_llm=5)
+    semear(con, id="e3", titulo="Item triagem unico", score_llm=1)
+    semear(
+        con, id="e4", titulo="Item sem nota unico",
+        score_llm=None, justificativa_llm=None,
+    )
+
+    md = relatorio.gerar(con, HOJE)
+    fora = _sem_bloco_prazo_apertado(md)
+    for titulo in (
+        "Item aderente unico", "Item olhar unico",
+        "Item triagem unico", "Item sem nota unico",
+    ):
+        assert fora.count(titulo) == 1, (
+            f"{titulo!r} apareceu {fora.count(titulo)}x fora de Prazo apertado"
+        )

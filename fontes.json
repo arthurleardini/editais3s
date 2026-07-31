@@ -1,27 +1,259 @@
 {
   "_meta": {
-    "descricao": "Financiadores de terceiro setor que contratam consultoria. Escopo: plataforma de dados, ciencia de dados, desenvolvimento de site/portal.",
-    "atualizado": "2026-07-29",
+    "descricao": "Financiadores e agregadores que contratam fornecedor. Curadoria verificada por fetch em 2026-07-30.",
+    "atualizado": "2026-07-30",
     "tiers": {
-      "1": "INGO ambiental e fundo ambiental com operacao no Brasil",
-      "2": "filantropia brasileira (institutos e fundacoes)"
+      "1": "alta chance de contratar consultoria de dados/plataforma",
+      "2": "complementar, rendimento menor",
+      "3": "situacional"
     },
-    "verificar": "true = URL da pagina de oportunidade ainda nao confirmada pelo comando bootstrap"
+    "criterio": "So entra fonte que CONTRATA fornecedor. Fonte que so repassa dinheiro a projeto de terceiro (so_fomento) fica fora.",
+    "removidas": "fundo-casa, itau-social, ics, serrapilheira, tide-setubal, unibanco, baoba, bem-maior — todas so_fomento. Ver docs/curadoria-fontes-2026-07-30.md",
+    "navegador": "true = buscar com Chromium headless (conteudo so existe apos JS)",
+    "verificar": "true = URL ainda nao confirmada contra o site"
   },
   "fontes": [
-    {"id": "wri-brasil", "nome": "WRI Brasil", "tipo": "html", "dominio": "wribrasil.org.br", "url": "https://www.wribrasil.org.br/oportunidades", "tier": 1, "verificar": true, "nota": "Origem do TdR FLWTDR-2026-011 (Ouvidoria Restaura Biomas). Publica TdR em PDF linkado."},
-    {"id": "funbio", "nome": "Funbio", "tipo": "html", "dominio": "funbio.org.br", "url": "https://www.funbio.org.br/editais/", "tier": 1, "verificar": true, "nota": "Alto volume de edital de consultoria; opera Fundo Amazonia e projetos GEF."},
-    {"id": "wwf-brasil", "nome": "WWF-Brasil", "tipo": "html", "dominio": "wwf.org.br", "url": "https://www.wwf.org.br/wwf_brasil/editais/", "tier": 1, "verificar": true, "nota": "Parceiro da Uniao pela Restauracao junto com WRI, TNC e CI."},
-    {"id": "tnc-brasil", "nome": "The Nature Conservancy Brasil", "tipo": "html", "dominio": "tnc.org.br", "url": "https://www.tnc.org.br/quem-somos/transparencia/", "tier": 1, "verificar": true, "nota": "Verificar se publica edital em pagina propria ou so por convite."},
-    {"id": "ci-brasil", "nome": "Conservacao Internacional Brasil", "tipo": "html", "dominio": "conservation.org", "url": "https://www.conservation.org/brasil/oportunidades", "tier": 1, "verificar": true, "nota": "CI-GEF e o financiador do Restaura Biomas."},
-    {"id": "ipam", "nome": "IPAM", "tipo": "html", "dominio": "ipam.org.br", "url": "https://ipam.org.br/oportunidades/", "tier": 1, "verificar": true, "nota": "Pesquisa amazonica; contrata dados e geoespacial."},
-    {"id": "imazon", "nome": "Imazon", "tipo": "html", "dominio": "imazon.org.br", "url": "https://imazon.org.br/institucional/trabalhe-conosco/", "tier": 1, "verificar": true, "nota": "Forte em sensoriamento remoto; separar vaga de consultoria."},
-    {"id": "isa", "nome": "Instituto Socioambiental", "tipo": "html", "dominio": "socioambiental.org", "url": "https://www.socioambiental.org/pt-br/institucional/editais", "tier": 1, "verificar": true, "nota": "Publica edital e chamada de consultoria."},
-    {"id": "fas", "nome": "Fundacao Amazonia Sustentavel", "tipo": "html", "dominio": "fas-amazonia.org", "url": "https://fas-amazonia.org/editais/", "tier": 1, "verificar": true, "nota": "Volume alto de cotacao e TdR."},
-    {"id": "escolhas", "nome": "Instituto Escolhas", "tipo": "html", "dominio": "escolhas.org", "url": "https://escolhas.org/oportunidades/", "tier": 1, "verificar": true, "nota": "Estudo economico-ambiental; contrata analise de dados."},
-    {"id": "talanoa", "nome": "Instituto Talanoa", "tipo": "gnews", "dominio": "institutotalanoa.org", "query": "site:institutotalanoa.org edital OR consultoria OR \"termo de referencia\"", "tier": 1, "verificar": false, "nota": "Sem pagina de oportunidade conhecida; coberto por padrao textual."},
-    {"id": "sos-mata-atlantica", "nome": "SOS Mata Atlantica", "tipo": "html", "dominio": "sosma.org.br", "url": "https://www.sosma.org.br/transparencia/", "tier": 1, "verificar": true, "nota": "Verificar secao de contratacao."},
-    {"id": "observatorio-do-clima", "nome": "Observatorio do Clima", "tipo": "gnews", "dominio": "oc.eco.br", "query": "site:oc.eco.br edital OR consultoria OR vaga", "tier": 1, "verificar": false, "nota": "Rede; publica pouco edital proprio."},
-    {"id": "fundo-casa", "nome": "Fundo Casa Socioambiental", "tipo": "html", "dominio": "casa.org.br", "url": "https://casa.org.br/editais/", "tier": 1, "verificar": true, "nota": "Foco em apoio a projeto; veto suave tende a filtrar. Manter para pegar consultoria de plataforma."}
+    {
+      "id": "wri-brasil",
+      "nome": "WRI Brasil",
+      "tipo": "html",
+      "dominio": "wribrasil.org.br",
+      "url": "https://www.wribrasil.org.br/trabalhe-conosco",
+      "tier": 1,
+      "verificar": false,
+      "nota": "Secao 'Oportunidades de consultoria' dentro da pagina de vagas. 15+ TdRs. Origem do projeto."
+    },
+    {
+      "id": "tnc-brasil",
+      "nome": "The Nature Conservancy Brasil",
+      "tipo": "html",
+      "dominio": "tnc.org.br",
+      "url": "https://www.tnc.org.br/conecte-se/trabalhe-conosco/",
+      "tier": 1,
+      "verificar": false,
+      "nota": "Consultoria separada das vagas; vagas vao pra careers.tnc.org."
+    },
+    {
+      "id": "isa",
+      "nome": "Instituto Socioambiental",
+      "tipo": "html",
+      "dominio": "socioambiental.org",
+      "url": "https://www.socioambiental.org/vagas-e-editais",
+      "tier": 1,
+      "verificar": false,
+      "nota": "Maioria TdR de consultoria, rotatividade semanal."
+    },
+    {
+      "id": "ci-brasil",
+      "nome": "Conservacao Internacional Brasil",
+      "tipo": "html",
+      "dominio": "brasil.conservation.org",
+      "url": "https://brasil.conservation.org/oportunidades",
+      "tier": 1,
+      "verificar": false,
+      "nota": "Canonico do redirect de conservation.org/brasil. TdRs em PDF no cdn.sanity.io."
+    },
+    {
+      "id": "abong",
+      "nome": "ABONG",
+      "tipo": "html",
+      "dominio": "abong.org.br",
+      "url": "https://abong.org.br/editais/",
+      "tier": 1,
+      "verificar": false,
+      "nota": "Selecoes de consultoria desde 2019. Mistura fomento, minoria."
+    },
+    {
+      "id": "undp-procurement",
+      "nome": "PNUD Procurement Notices",
+      "tipo": "gnews",
+      "dominio": "procurement-notices.undp.org",
+      "tier": 1,
+      "verificar": false,
+      "nota": "robots.txt declara Disallow: / — respeitado. Indice de busca como alternativa.",
+      "query": "site:procurement-notices.undp.org Brazil (consultoria OR consultancy)"
+    },
+    {
+      "id": "unesco-brasilia",
+      "nome": "UNESCO Brasilia Compras",
+      "tipo": "gnews",
+      "dominio": "compras.brasilia.unesco.org",
+      "tier": 1,
+      "verificar": false,
+      "nota": "robots.txt declara Disallow: / — respeitado. Indice de busca como alternativa.",
+      "query": "site:compras.brasilia.unesco.org (consultoria OR edital OR contratacao)"
+    },
+    {
+      "id": "c40-cities",
+      "nome": "C40 Cities",
+      "tipo": "html",
+      "dominio": "c40.org",
+      "url": "https://www.c40.org/work-with-c40/",
+      "tier": 1,
+      "verificar": false,
+      "nota": "RFP de mapeamento de risco e dados climaticos. Item de Salvador confirmado."
+    },
+    {
+      "id": "jica-brasil",
+      "nome": "JICA Brasil",
+      "tipo": "html",
+      "dominio": "jica.go.jp",
+      "url": "https://www.jica.go.jp/portuguese/overseas/brazil/information/topics/index.html",
+      "tier": 1,
+      "verificar": false,
+      "nota": "Historico de licitacao de SAR e IA para desmatamento."
+    },
+    {
+      "id": "funbio",
+      "nome": "Funbio Chamadas",
+      "tipo": "html",
+      "dominio": "chamadas.funbio.org.br",
+      "url": "https://chamadas.funbio.org.br",
+      "tier": 2,
+      "verificar": false,
+      "nota": "Sobretudo fomento; TdR de consultoria fica solto em wp-content sem indice. Rendimento baixo esperado."
+    },
+    {
+      "id": "fas",
+      "nome": "Fundacao Amazonia Sustentavel",
+      "tipo": "html",
+      "dominio": "fas-amazonia.org",
+      "url": "https://fas-amazonia.org/oportunidades-sociobioeconomia/",
+      "tier": 2,
+      "verificar": false,
+      "nota": "Listagem correta mas e fomento (REM MT). Consultoria corre por ATS factorialhr."
+    },
+    {
+      "id": "fundacao-bb",
+      "nome": "Fundacao Banco do Brasil",
+      "tipo": "html",
+      "dominio": "fbb.org.br",
+      "url": "https://fbb.org.br/sobre-a-fundacao-bb/transparencia-periodo-eleitoral/",
+      "tier": 2,
+      "verificar": true,
+      "nota": "Licitacao formal Lei 13.303. Majoritariamente compras gerais. URL peculiar, reconferir."
+    },
+    {
+      "id": "ungm",
+      "nome": "UN Global Marketplace",
+      "tipo": "html",
+      "dominio": "ungm.org",
+      "url": "https://www.ungm.org/Public/Notice",
+      "tier": 1,
+      "navegador": true,
+      "verificar": true,
+      "nota": "Tabela so popula via JS. Filtro de pais Brasil. Sem bloqueio."
+    },
+    {
+      "id": "banco-mundial",
+      "nome": "Banco Mundial Procurement",
+      "tipo": "html",
+      "dominio": "projects.worldbank.org",
+      "url": "https://projects.worldbank.org/en/projects-operations/procurement",
+      "tier": 2,
+      "navegador": true,
+      "verificar": true,
+      "nota": "'Loading...' no HTML cru; precisa render."
+    },
+    {
+      "id": "wwf-brasil",
+      "nome": "WWF-Brasil",
+      "tipo": "gnews",
+      "dominio": "wwf.org.br",
+      "query": "site:wwf.org.br (consultoria OR edital OR \"termo de referencia\")",
+      "tier": 1,
+      "verificar": false,
+      "nota": "403 de WAF por IP; navegador headless tambem barrado. Indice do Google devolve as consultorias."
+    },
+    {
+      "id": "ipam",
+      "nome": "IPAM",
+      "tipo": "gnews",
+      "dominio": "ipam.org.br",
+      "query": "site:ipam.org.br (consultoria OR \"termo de referencia\" OR TDR)",
+      "tier": 1,
+      "verificar": false,
+      "nota": "TdR real em /vagas/{slug}, sem indice. Recusa conexao apos poucas requisicoes."
+    },
+    {
+      "id": "imazon",
+      "nome": "Imazon",
+      "tipo": "gnews",
+      "dominio": "imazon.org.br",
+      "query": "site:imazon.org.br (consultoria OR edital OR \"tomada de preco\")",
+      "tier": 2,
+      "verificar": false,
+      "nota": "Sem pagina; TdR sai como post avulso, ~1 em 25 itens."
+    },
+    {
+      "id": "escolhas",
+      "nome": "Instituto Escolhas",
+      "tipo": "gnews",
+      "dominio": "escolhas.org",
+      "query": "site:escolhas.org (consultoria OR TDR OR edital)",
+      "tier": 2,
+      "verificar": false,
+      "nota": "/trabalhe-conosco existe mas vazio; TdR sai como PDF avulso."
+    },
+    {
+      "id": "sos-mata-atlantica",
+      "nome": "SOS Mata Atlantica",
+      "tipo": "gnews",
+      "dominio": "sosma.org.br",
+      "query": "site:sosma.org.br (consultoria OR edital OR \"termo de referencia\")",
+      "tier": 2,
+      "verificar": false,
+      "nota": "Sem secao; consultoria sai no meio do noticiario."
+    },
+    {
+      "id": "talanoa",
+      "nome": "Instituto Talanoa",
+      "tipo": "gnews",
+      "dominio": "institutotalanoa.org",
+      "query": "site:institutotalanoa.org (consultoria OR edital OR vaga)",
+      "tier": 3,
+      "verificar": false,
+      "nota": "Confirmado sem pagina; publica por LinkedIn e email dedicado."
+    },
+    {
+      "id": "observatorio-do-clima",
+      "nome": "Observatorio do Clima",
+      "tipo": "gnews",
+      "dominio": "oc.eco.br",
+      "query": "site:oc.eco.br (consultoria OR edital OR vaga)",
+      "tier": 3,
+      "verificar": false,
+      "nota": "403 de WAF por IP, navegador tambem barrado. Sem pagina indexada."
+    },
+    {
+      "id": "gife",
+      "nome": "GIFE",
+      "tipo": "gnews",
+      "dominio": "gife.org.br",
+      "query": "site:gife.org.br (contrata OR consultoria OR edital)",
+      "tier": 2,
+      "verificar": false,
+      "nota": "Navegador destrava o dominio mas /oportunidades e mural de vagas sem listagem colhivel. Busca tem sinal forte."
+    },
+    {
+      "id": "fas-ats",
+      "nome": "FAS (board Factorial)",
+      "tipo": "html",
+      "dominio": "fas-amazonia.factorialhr.com",
+      "url": "https://fas-amazonia.factorialhr.com",
+      "tier": 1,
+      "verificar": false,
+      "nota": "ATS que mistura CLT e PJ. Tem 'Contratacao de Pessoa Juridica para Desenvolvimento de Sistema de Coleta de Dados'. Excecao a regra: ATS em geral e so CLT."
+    },
+    {
+      "id": "vagas-terceiro-setor",
+      "nome": "Vagas Terceiro Setor (PJ/MEI)",
+      "tipo": "html",
+      "dominio": "vagas.terceirosetor.net",
+      "url": "https://vagas.terceirosetor.net/empregos/?job_type=emprego-pj-mei-terceiro-setor",
+      "tier": 3,
+      "verificar": false,
+      "nota": "Agregador cross-org com filtro PJ/MEI, 487 vagas. Amostra skew para coordenacao/prestacao de contas, nao dados. Rede secundaria."
+    }
   ]
 }

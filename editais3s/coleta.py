@@ -54,24 +54,6 @@ def _baixar(url: str, cliente: httpx.Client) -> httpx.Response:
     raise ultimo  # type: ignore[misc]
 
 
-def _wb_procnotices(texto: str) -> str:
-    """JSON da API search.worldbank.org/api/v2/procnotices -> lista HTML."""
-    dados = json.loads(texto)
-    linhas = ["<ul>"]
-    for n in dados.get("procnotices", []):
-        url = f"https://projects.worldbank.org/en/projects-operations/procurement-detail/{n.get('id', '')}"
-        campos = [
-            n.get("notice_type"), n.get("bid_description"), n.get("project_name"),
-            n.get("procurement_method_name"), n.get("contact_organization"),
-            f"publicado {n.get('noticedate')}" if n.get("noticedate") else None,
-            f"prazo {n['submission_deadline_date'][:10]}" if n.get("submission_deadline_date") else None,
-            f"link: {url}",
-        ]
-        linhas.append("<li>" + " — ".join(str(c) for c in campos if c) + "</li>")
-    linhas.append("</ul>")
-    return "\n".join(linhas)
-
-
 def _wp_json(texto: str) -> str:
     """Resposta da REST API do WordPress (/wp-json/wp/v2/pages?slug=...) ->
     HTML da pagina. Serve site cuja pagina publica fica atras de desafio do
@@ -84,7 +66,7 @@ def _wp_json(texto: str) -> str:
     )
 
 
-FORMATOS = {"wb-procnotices": _wb_procnotices, "wp-json": _wp_json}
+FORMATOS = {"wp-json": _wp_json}
 
 
 def _gravar_erro(con: sqlite3.Connection, fonte_id: str, status, erro: str) -> None:

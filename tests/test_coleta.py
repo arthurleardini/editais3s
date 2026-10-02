@@ -213,22 +213,7 @@ def test_formato_wp_json_devolve_conteudo_da_pagina(tmp_path):
     assert "Requests for Proposals" in r.texto and "9 de outubro de 2026" in r.texto
 
 
-def test_formato_wb_procnotices_vira_lista_legivel(tmp_path):
-    con = db.conectar(tmp_path / "t.sqlite")
-    corpo = (
-        '{"procnotices": [{"id": "OP00012345", "notice_type": "Request for Expression of Interest",'
-        ' "bid_description": "Consultoria em painel de indicadores fiscais", "noticedate": "01-Oct-2026",'
-        ' "submission_deadline_date": "2026-10-21T00:00:00Z"}]}'
-    )
-    fonte = dict(FONTE, formato="wb-procnotices")
-    r = coleta.coletar(fonte, con, cliente(corpo))
-    assert r.ok
-    assert "painel de indicadores fiscais" in r.texto
-    assert "prazo 2026-10-21" in r.texto
-    assert "procurement-detail/OP00012345" in r.texto
-
-
 def test_formato_com_json_invalido_grava_erro(tmp_path):
     con = db.conectar(tmp_path / "t.sqlite")
-    r = coleta.coletar(dict(FONTE, formato="wb-procnotices"), con, cliente("<html>"))
-    assert not r.ok and r.erro.startswith("formato wb-procnotices")
+    r = coleta.coletar(dict(FONTE, formato="wp-json"), con, cliente("<html>"))
+    assert not r.ok and r.erro.startswith("formato wp-json")

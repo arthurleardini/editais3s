@@ -146,17 +146,6 @@
       "nota": "Tabela so popula via JS. Filtro de pais Brasil. Sem bloqueio."
     },
     {
-      "id": "banco-mundial",
-      "nome": "Banco Mundial Procurement",
-      "tipo": "html",
-      "dominio": "projects.worldbank.org",
-      "url": "https://search.worldbank.org/api/v2/procnotices?format=json&rows=100&srt=noticedate&order=desc&project_ctry_name=Brazil&fl=id,notice_type,noticedate,submission_deadline_date,bid_description,project_name,procurement_method_name,contact_organization",
-      "tier": 2,
-      "verificar": false,
-      "nota": "API oficial search.worldbank.org (procnotices), filtro project_ctry_name=Brazil, 100 mais recentes. Substitui render da pagina, que ficou 60+ dias sem item (2026-10-02).",
-      "formato": "wb-procnotices"
-    },
-    {
       "id": "wwf-brasil",
       "nome": "WWF-Brasil",
       "tipo": "gnews",

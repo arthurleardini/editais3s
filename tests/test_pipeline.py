@@ -84,16 +84,30 @@ def test_varrer_conta_fonte_com_erro(tmp_path, monkeypatch):
     assert resumo["fontes_erro"] == 1 and resumo["novas"] == 0
 
 
-def test_varrer_pula_fonte_gnews_nesta_fase(tmp_path):
+def test_varrer_coleta_fonte_gnews_via_busca(tmp_path, monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr(pipeline.coleta.busca, "ddgs", lambda q: [])
     con = db.conectar(tmp_path / "t.sqlite")
     fonte = {
-        "id": "talanoa", "nome": "Talanoa", "tipo": "gnews",
-        "dominio": "institutotalanoa.org", "query": "x", "tier": 1,
+        "id": "wwf-brasil", "nome": "WWF", "tipo": "gnews",
+        "dominio": "wwf.org.br", "query": "site:wwf.org.br consultoria", "tier": 1,
     }
+    rss = """<rss><channel><item><title>TdR consultoria: plataforma de dados e painel de indicadores</title>
+<link>https://news.google.com/x</link><pubDate>Wed, 01 Oct 2026 10:00:00 GMT</pubDate></item></channel></rss>"""
+    pedidos = []
+
+    def handler(request):
+        pedidos.append(str(request.url))
+        return httpx.Response(200, text=rss)
+
     resumo = pipeline.varrer(
-        con, [fonte], cliente_falso(), usar_llm=False, pausar=lambda _: None
+        con, [fonte], httpx.Client(transport=httpx.MockTransport(handler)),
+        usar_llm=False, pausar=lambda _: None,
     )
-    assert resumo["ignoradas"] == 1
+    assert resumo["fontes_ok"] == 1 and resumo["fora_de_fase"] == 0
+    # nao toca robots.txt do dominio de origem
+    assert all("robots.txt" not in u for u in pedidos)
+    assert all(u.startswith("https://news.google.com/rss/search") for u in pedidos)
 
 
 def test_varrer_registra_execucao(tmp_path, monkeypatch):
@@ -307,11 +321,11 @@ def test_pagina_sem_mudanca_incrementa_sem_mudanca(tmp_path, monkeypatch):
     assert resumo["ignoradas"] == 1
 
 
-def test_fonte_gnews_incrementa_fora_de_fase(tmp_path):
+def test_fonte_rss_incrementa_fora_de_fase(tmp_path):
     con = db.conectar(tmp_path / "t.sqlite")
     fonte = {
-        "id": "talanoa", "nome": "Talanoa", "tipo": "gnews",
-        "dominio": "institutotalanoa.org", "query": "x", "tier": 1,
+        "id": "feed", "nome": "Feed", "tipo": "rss",
+        "dominio": "x.org", "url": "https://x.org/feed", "tier": 1,
     }
     resumo = pipeline.varrer(
         con, [fonte], cliente_falso(), usar_llm=False, pausar=lambda _: None

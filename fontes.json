@@ -1,7 +1,7 @@
 {
   "_meta": {
     "descricao": "Financiadores e agregadores que contratam fornecedor. Curadoria verificada por fetch em 2026-07-30; gife e softex reverificados em 2026-08-27.",
-    "atualizado": "2026-08-27",
+    "atualizado": "2026-10-02",
     "tiers": {
       "1": "alta chance de contratar consultoria de dados/plataforma",
       "2": "complementar, rendimento menor",
@@ -70,7 +70,7 @@
       "dominio": "procurement-notices.undp.org",
       "tier": 1,
       "verificar": false,
-      "nota": "robots.txt declara Disallow: / — respeitado. Indice de busca como alternativa.",
+      "nota": "robots.txt declara Disallow: / — respeitado. Indice de busca como alternativa. Coletado via busca.py (Google News RSS + DDGS) desde 2026-10-02.",
       "query": "site:procurement-notices.undp.org Brazil (consultoria OR consultancy)"
     },
     {
@@ -80,7 +80,7 @@
       "dominio": "compras.brasilia.unesco.org",
       "tier": 1,
       "verificar": false,
-      "nota": "robots.txt declara Disallow: / — respeitado. Indice de busca como alternativa.",
+      "nota": "robots.txt declara Disallow: / — respeitado. Indice de busca como alternativa. Coletado via busca.py (Google News RSS + DDGS) desde 2026-10-02.",
       "query": "site:compras.brasilia.unesco.org (consultoria OR edital OR contratacao)"
     },
     {
@@ -88,10 +88,11 @@
       "nome": "C40 Cities",
       "tipo": "html",
       "dominio": "c40.org",
-      "url": "https://www.c40.org/work-with-c40/",
+      "url": "https://www.c40.org/wp-json/wp/v2/pages?slug=work-with-c40",
       "tier": 1,
       "verificar": false,
-      "nota": "RFP de mapeamento de risco e dados climaticos. Item de Salvador confirmado."
+      "nota": "RFP de mapeamento de risco e dados climaticos. Item de Salvador confirmado. Pagina publica atras de desafio Cloudflare (403 em httpx, curl_cffi e Chromium); a REST API do WordPress serve o mesmo conteudo sem desafio (2026-10-02).",
+      "formato": "wp-json"
     },
     {
       "id": "jica-brasil",
@@ -118,10 +119,10 @@
       "nome": "Fundacao Amazonia Sustentavel",
       "tipo": "html",
       "dominio": "fas-amazonia.org",
-      "url": "https://fas-amazonia.org/oportunidades-sociobioeconomia/",
+      "url": "https://fas-amazonia.org/editais-e-chamadas/",
       "tier": 2,
       "verificar": false,
-      "nota": "Listagem correta mas e fomento (REM MT). Consultoria corre por ATS factorialhr."
+      "nota": "Listagem correta mas e fomento (REM MT). Consultoria corre por ATS factorialhr. URL antiga deu 404; listagem passou para /editais-e-chamadas/ (2026-10-02)."
     },
     {
       "id": "fundacao-bb",
@@ -149,11 +150,11 @@
       "nome": "Banco Mundial Procurement",
       "tipo": "html",
       "dominio": "projects.worldbank.org",
-      "url": "https://projects.worldbank.org/en/projects-operations/procurement",
+      "url": "https://search.worldbank.org/api/v2/procnotices?format=json&rows=100&srt=noticedate&order=desc&project_ctry_name=Brazil&fl=id,notice_type,noticedate,submission_deadline_date,bid_description,project_name,procurement_method_name,contact_organization",
       "tier": 2,
-      "navegador": true,
-      "verificar": true,
-      "nota": "'Loading...' no HTML cru; precisa render."
+      "verificar": false,
+      "nota": "API oficial search.worldbank.org (procnotices), filtro project_ctry_name=Brazil, 100 mais recentes. Substitui render da pagina, que ficou 60+ dias sem item (2026-10-02).",
+      "formato": "wb-procnotices"
     },
     {
       "id": "wwf-brasil",
@@ -163,7 +164,7 @@
       "query": "site:wwf.org.br (consultoria OR edital OR \"termo de referencia\")",
       "tier": 1,
       "verificar": false,
-      "nota": "403 de WAF por IP; navegador headless tambem barrado. Indice do Google devolve as consultorias."
+      "nota": "403 de WAF por IP; navegador headless tambem barrado. Indice do Google devolve as consultorias. Coletado via busca.py (Google News RSS + DDGS) desde 2026-10-02."
     },
     {
       "id": "ipam",

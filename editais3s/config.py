@@ -19,6 +19,9 @@ UA_NAVEGADOR = (
     "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
 )
 TENTATIVAS = 2
+# fontes via indice de busca (tipo gnews)
+BUSCA_JANELA_DIAS = 60
+BUSCA_MAX_DDGS = 20
 CONCORRENCIA = 6
 INTERVALO_DOMINIO = 1.0
 MAX_CHARS_TEXTO = 40_000

@@ -408,3 +408,18 @@ def test_blocos_de_classificacao_sao_mutuamente_exclusivos(tmp_path):
         assert fora.count(titulo) == 1, (
             f"{titulo!r} apareceu {fora.count(titulo)}x fora de Prazo apertado"
         )
+
+
+def test_saude_ignora_snapshot_de_fonte_fora_do_catalogo(tmp_path):
+    from editais3s import db as _db
+
+    con = _db.conectar(tmp_path / "t.sqlite")
+    con.execute(
+        "INSERT INTO snapshots (fonte_id, coletado_em, http_status, erro, erros_seguidos) "
+        "VALUES ('removida', '2026-07-30', 404, 'HTTP 404', 3), "
+        "('ativa', '2026-10-02', 403, 'HTTP 403', 1)"
+    )
+    con.commit()
+    md = relatorio._saude(con, "2026-10-02", ids={"ativa"})
+    assert "`ativa`" in md
+    assert "removida" not in md

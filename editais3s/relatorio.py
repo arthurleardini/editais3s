@@ -123,12 +123,29 @@ def _apertadas(con: sqlite3.Connection, data: str) -> list[sqlite3.Row]:
     return [o for o in linhas if _prazo_apertado(o, data)]
 
 
-def _saude(con: sqlite3.Connection, data: str) -> str:
+def _ids_catalogo() -> set[str] | None:
+    """Ids do catalogo atual. Fonte removida do fontes.json deixa snapshot
+    orfao no banco (fundo-casa: 404 listado por semanas depois de sair do
+    catalogo); sem este filtro o bloco Saude reporta erro de fonte que nem e'
+    mais varrida. None se o catalogo nao carrega — ai nao filtra."""
+    from . import fontes
+
+    try:
+        return {f["id"] for f in fontes.carregar()}
+    except Exception:
+        return None
+
+
+def _saude(con: sqlite3.Connection, data: str, ids: set[str] | None = None) -> str:
+    ids = _ids_catalogo() if ids is None else ids
+    no_catalogo = (lambda i: True) if ids is None else (lambda i: i in ids)
     linhas = []
     for s in con.execute(
         "SELECT fonte_id, erro, erros_seguidos FROM snapshots "
         "WHERE erro IS NOT NULL AND erros_seguidos > 0 ORDER BY erros_seguidos DESC"
     ):
+        if not no_catalogo(s["fonte_id"]):
+            continue
         linhas.append(
             f"- `{s['fonte_id']}`: {s['erro']} ({s['erros_seguidos']} execuções seguidas)"
         )
@@ -143,6 +160,8 @@ def _saude(con: sqlite3.Connection, data: str) -> str:
         """,
         (corte,),
     ):
+        if not no_catalogo(s["fonte_id"]):
+            continue
         linhas.append(
             f"- `{s['fonte_id']}`: nenhum item há mais de {DIAS_SEM_ITEM_ALERTA} dias "
             "(possível parser cego ou seção movida)"

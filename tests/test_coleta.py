@@ -203,3 +203,32 @@ def test_erros_seguidos_incrementa_em_falhas_consecutivas(tmp_path):
         "SELECT erros_seguidos FROM snapshots WHERE fonte_id=?", (FONTE["id"],)
     ).fetchone()
     assert linha["erros_seguidos"] == 3
+
+
+def test_formato_wp_json_devolve_conteudo_da_pagina(tmp_path):
+    con = db.conectar(tmp_path / "t.sqlite")
+    corpo = '[{"title": {"rendered": "Work with C40"}, "content": {"rendered": "<h2>Requests for Proposals</h2><p>Consultoria para Oficinas. Prazo: 9 de outubro de 2026</p>"}}]'
+    r = coleta.coletar(dict(FONTE, formato="wp-json"), con, cliente(corpo))
+    assert r.ok
+    assert "Requests for Proposals" in r.texto and "9 de outubro de 2026" in r.texto
+
+
+def test_formato_wb_procnotices_vira_lista_legivel(tmp_path):
+    con = db.conectar(tmp_path / "t.sqlite")
+    corpo = (
+        '{"procnotices": [{"id": "OP00012345", "notice_type": "Request for Expression of Interest",'
+        ' "bid_description": "Consultoria em painel de indicadores fiscais", "noticedate": "01-Oct-2026",'
+        ' "submission_deadline_date": "2026-10-21T00:00:00Z"}]}'
+    )
+    fonte = dict(FONTE, formato="wb-procnotices")
+    r = coleta.coletar(fonte, con, cliente(corpo))
+    assert r.ok
+    assert "painel de indicadores fiscais" in r.texto
+    assert "prazo 2026-10-21" in r.texto
+    assert "procurement-detail/OP00012345" in r.texto
+
+
+def test_formato_com_json_invalido_grava_erro(tmp_path):
+    con = db.conectar(tmp_path / "t.sqlite")
+    r = coleta.coletar(dict(FONTE, formato="wb-procnotices"), con, cliente("<html>"))
+    assert not r.ok and r.erro.startswith("formato wb-procnotices")

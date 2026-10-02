@@ -10,7 +10,10 @@ OBRIGATORIOS = ("id", "nome", "tipo", "dominio", "tier")
 # "query" (gnews): "verificar", "nota", e o flag booleano que manda a
 # coleta passar pelo Chromium headless em vez de httpx — "navegador"
 # (nome atual) ou "js" (sinonimo legado, ver coleta.coletar).
-CAMPOS_OPCIONAIS = ("url", "query", "verificar", "nota", "navegador", "js")
+# "formato": conversor do corpo antes da limpeza (ver coleta.FORMATOS).
+CAMPOS_OPCIONAIS = (
+    "url", "query", "verificar", "nota", "navegador", "js", "formato",
+)
 
 
 class FonteInvalida(ValueError):

@@ -4,3 +4,4 @@ selectolax==0.4.11
 pyahocorasick==2.3.1
 anthropic==0.120.2
 pytest==9.1.1
+ddgs==9.16.0

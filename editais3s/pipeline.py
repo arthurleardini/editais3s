@@ -44,15 +44,18 @@ def varrer(
     pendentes: list[dict] = []
 
     for i, fonte in enumerate(lista_fontes):
-        if fonte["tipo"] != "html":
-            # gnews e outros tipos ainda nao cobertos nesta fase do pipeline —
-            # nao e erro nem bloqueio, e so um tipo de fonte fora da fase atual.
+        if fonte["tipo"] not in ("html", "gnews"):
+            # rss/json ainda nao cobertos nesta fase do pipeline — nao e erro
+            # nem bloqueio, e so um tipo de fonte fora da fase atual.
             resumo["fora_de_fase"] += 1
             continue
         if i:
             pausar(INTERVALO_DOMINIO)
 
-        if not coleta.robots_permite(fonte, cliente):
+        # gnews nao toca o site de origem (le o indice de busca), entao o
+        # robots.txt do dominio nao se aplica — e' justamente a rota para
+        # dominio com Disallow (PNUD, UNESCO).
+        if fonte["tipo"] == "html" and not coleta.robots_permite(fonte, cliente):
             resumo["bloqueadas"] += 1
             # Sem isso a fonte some de snapshots e o bloco Saude nunca aponta
             # o bloqueio: se um financiador publicar Disallow amanha, o
@@ -178,7 +181,7 @@ def bootstrap(ids: list[str] | None = None, cliente=None) -> list[dict]:
     try:
         for fonte in lista:
             if fonte["tipo"] != "html":
-                achados.append({"id": fonte["id"], "situacao": "sem url (gnews)"})
+                achados.append({"id": fonte["id"], "situacao": "sem url (busca)"})
                 continue
             try:
                 resp = cliente.get(

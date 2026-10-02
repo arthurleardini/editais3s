@@ -7,7 +7,9 @@ from urllib.parse import urljoin
 
 import httpx
 
-from . import limpeza
+import json
+
+from . import busca, limpeza
 from . import navegador as nav
 from .config import TENTATIVAS, UA
 
@@ -50,6 +52,39 @@ def _baixar(url: str, cliente: httpx.Client) -> httpx.Response:
         except httpx.HTTPError as exc:
             ultimo = exc
     raise ultimo  # type: ignore[misc]
+
+
+def _wb_procnotices(texto: str) -> str:
+    """JSON da API search.worldbank.org/api/v2/procnotices -> lista HTML."""
+    dados = json.loads(texto)
+    linhas = ["<ul>"]
+    for n in dados.get("procnotices", []):
+        url = f"https://projects.worldbank.org/en/projects-operations/procurement-detail/{n.get('id', '')}"
+        campos = [
+            n.get("notice_type"), n.get("bid_description"), n.get("project_name"),
+            n.get("procurement_method_name"), n.get("contact_organization"),
+            f"publicado {n.get('noticedate')}" if n.get("noticedate") else None,
+            f"prazo {n['submission_deadline_date'][:10]}" if n.get("submission_deadline_date") else None,
+            f"link: {url}",
+        ]
+        linhas.append("<li>" + " — ".join(str(c) for c in campos if c) + "</li>")
+    linhas.append("</ul>")
+    return "\n".join(linhas)
+
+
+def _wp_json(texto: str) -> str:
+    """Resposta da REST API do WordPress (/wp-json/wp/v2/pages?slug=...) ->
+    HTML da pagina. Serve site cuja pagina publica fica atras de desafio do
+    Cloudflare mas cuja API nao (C40)."""
+    paginas = json.loads(texto)
+    if isinstance(paginas, dict):
+        paginas = [paginas]
+    return "\n".join(
+        f"<h1>{p['title']['rendered']}</h1>\n{p['content']['rendered']}" for p in paginas
+    )
+
+
+FORMATOS = {"wb-procnotices": _wb_procnotices, "wp-json": _wp_json}
 
 
 def _gravar_erro(con: sqlite3.Connection, fonte_id: str, status, erro: str) -> None:
@@ -122,6 +157,16 @@ def coletar(
 ) -> Coleta:
     fonte_id = fonte["id"]
 
+    if fonte["tipo"] == "gnews":
+        try:
+            itens = busca.buscar(fonte["query"], cliente)
+        except busca.ErroBusca as exc:
+            erro = f"busca: {exc}"
+            _gravar_erro(con, fonte_id, None, erro)
+            return Coleta(fonte_id, ok=False, mudou=False, erro=erro)
+        html = busca.como_html(fonte, itens)
+        return _processar(fonte_id, con, 200, html, len(html.encode("utf-8")), forcar)
+
     # "js" e o nome antigo do flag, mantido como sinonimo para nao quebrar
     # entradas ja curadas no catalogo.
     if fonte.get("navegador") or fonte.get("js"):
@@ -146,6 +191,15 @@ def coletar(
         _gravar_erro(con, fonte_id, None, erro)
         return Coleta(fonte_id, ok=False, mudou=False, erro=erro)
 
+    texto = resp.text
+    conversor = FORMATOS.get(fonte.get("formato", ""))
+    if conversor and resp.status_code < 400:
+        try:
+            texto = conversor(texto)
+        except ValueError as exc:
+            erro = f"formato {fonte['formato']}: {exc}"
+            _gravar_erro(con, fonte_id, resp.status_code, erro)
+            return Coleta(fonte_id, ok=False, mudou=False, http_status=resp.status_code, erro=erro)
     return _processar(
-        fonte_id, con, resp.status_code, resp.text, len(resp.content), forcar
+        fonte_id, con, resp.status_code, texto, len(resp.content), forcar
     )

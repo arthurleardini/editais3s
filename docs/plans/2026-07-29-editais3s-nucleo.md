@@ -60,7 +60,7 @@ Spec: `docs/specs/2026-07-29-editais3s-design.md`. Este plano cobre as Fases 1 e
 O diretório e o `docs/` já existem. Falta o git.
 
 ```bash
-cd /config/workspace/editais3s
+cd /config/workspace/20-notabc/editais
 git init
 printf 'data/\n__pycache__/\n*.pyc\n.venv/\n.pytest_cache/\n' > .gitignore
 git add .gitignore docs/

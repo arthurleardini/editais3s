@@ -34,7 +34,7 @@ Cola a chave imediatamente depois do `=`, sem espaço e sem aspas. Salvar: `Ctrl
 
 ```bash
 set -a; . ~/.config/editais3s.env; set +a
-cd /config/workspace/editais3s
+cd /config/workspace/20-notabc/editais
 .venv/bin/python -m editais3s diario
 ```
 
@@ -67,8 +67,8 @@ chama LLM nenhum:
 ```ini
 [Service]
 EnvironmentFile=/config/.config/editais3s.env
-ExecStart=/config/workspace/editais3s/.venv/bin/python -m editais3s diario
-WorkingDirectory=/config/workspace/editais3s
+ExecStart=/config/workspace/20-notabc/editais/.venv/bin/python -m editais3s diario
+WorkingDirectory=/config/workspace/20-notabc/editais
 ```
 
 ## Notas

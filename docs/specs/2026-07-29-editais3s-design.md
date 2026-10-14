@@ -2,7 +2,7 @@
 
 Data: 2026-07-29
 Status: aprovado para plano de implementação
-Repo: `/config/workspace/editais3s/` (standalone, Python 3 + SQLite)
+Repo: `/config/workspace/20-notabc/editais/` (standalone, Python 3 + SQLite)
 
 ---
 

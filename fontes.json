@@ -1,7 +1,7 @@
 {
   "_meta": {
-    "descricao": "Financiadores e agregadores que contratam fornecedor. Curadoria verificada por fetch em 2026-07-30.",
-    "atualizado": "2026-07-30",
+    "descricao": "Financiadores e agregadores que contratam fornecedor. Curadoria verificada por fetch em 2026-07-30; gife e softex reverificados em 2026-08-27.",
+    "atualizado": "2026-08-27",
     "tiers": {
       "1": "alta chance de contratar consultoria de dados/plataforma",
       "2": "complementar, rendimento menor",
@@ -228,12 +228,27 @@
     {
       "id": "gife",
       "nome": "GIFE",
-      "tipo": "gnews",
+      "tipo": "html",
       "dominio": "gife.org.br",
-      "query": "site:gife.org.br (contrata OR consultoria OR edital)",
+      "url": "https://gife.org.br/editais/",
       "tier": 2,
+      "navegador": false,
+      "verificar": true,
+      "ancora": "Mais Antigas",
+      "query": "site:gife.org.br (contrata OR consultoria OR edital)",
+      "nota": "Listagem confirmada por fetch em 2026-08-27 (200, HTML servido, sem JS): roundup mensal 'Confira editais com inscricoes abertas'. Conteudo e so_fomento (chamada de projeto de terceiro, premio) — nao contrata fornecedor; por isso verificar=true. /oportunidades e post de 2011 sobre mural de vagas; vagas.gife.org.br e' board CLT/estagio. Query gnews mantida como sinal alternativo."
+    },
+    {
+      "id": "softex",
+      "nome": "Softex",
+      "tipo": "html",
+      "dominio": "softex.br",
+      "url": "https://softex.br/editais/",
+      "tier": 2,
+      "navegador": false,
       "verificar": false,
-      "nota": "Navegador destrava o dominio mas /oportunidades e mural de vagas sem listagem colhivel. Busca tem sinal forte."
+      "ancora": "Selecione uma iniciativa para visualizar seus editais, chamadas e documentos relacionados",
+      "nota": "Editais e chamadas dos programas Softex agrupados por iniciativa, com numero PROC e data. Confirmado por fetch em 2026-08-27 (200, server-rendered). Contrata: 'Solicitacao de proposta para contratacao de pessoa juridica especializada - Projeto Dona Ciencia' (PROC 085/2025). Tambem publica chamada de participante e bolsista."
     },
     {
       "id": "fas-ats",
